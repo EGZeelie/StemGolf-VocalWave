@@ -1,5 +1,5 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import { PodcastProject, BlogPost, CreatorProfile } from '../types';
+import { PodcastProject, BlogPost, CreatorProfile, Series } from '../types';
 
 interface StemGolfDB extends DBSchema {
   projects: {
@@ -12,6 +12,11 @@ interface StemGolfDB extends DBSchema {
     value: BlogPost;
     indexes: { 'by-date': number };
   };
+  series: {
+    key: string;
+    value: Series;
+    indexes: { 'by-date': number };
+  };
   settings: {
     key: string;
     value: CreatorProfile;
@@ -19,24 +24,36 @@ interface StemGolfDB extends DBSchema {
 }
 
 const DB_NAME = 'stemgolf-cms-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Bumped version for Series support
 
 let dbPromise: Promise<IDBPDatabase<StemGolfDB>>;
 
 const initDB = () => {
   if (!dbPromise) {
     dbPromise = openDB<StemGolfDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
+      upgrade(db, oldVersion, newVersion, transaction) {
         // Projects Store
-        const projectStore = db.createObjectStore('projects', { keyPath: 'id' });
-        projectStore.createIndex('by-date', 'createdAt');
+        if (!db.objectStoreNames.contains('projects')) {
+          const projectStore = db.createObjectStore('projects', { keyPath: 'id' });
+          projectStore.createIndex('by-date', 'createdAt');
+        }
 
         // Blog Posts Store
-        const postStore = db.createObjectStore('posts', { keyPath: 'id' });
-        postStore.createIndex('by-date', 'createdAt');
+        if (!db.objectStoreNames.contains('posts')) {
+          const postStore = db.createObjectStore('posts', { keyPath: 'id' });
+          postStore.createIndex('by-date', 'createdAt');
+        }
+
+        // Series Store (New in V2)
+        if (!db.objectStoreNames.contains('series')) {
+          const seriesStore = db.createObjectStore('series', { keyPath: 'id' });
+          seriesStore.createIndex('by-date', 'createdAt');
+        }
 
         // Settings/Profile Store
-        db.createObjectStore('settings', { keyPath: 'slug' });
+        if (!db.objectStoreNames.contains('settings')) {
+          db.createObjectStore('settings', { keyPath: 'slug' });
+        }
       },
     });
   }
@@ -92,6 +109,22 @@ export const db = {
     }
   },
   
+  series: {
+    list: async () => {
+      const db = await initDB();
+      const series = await db.getAllFromIndex('series', 'by-date');
+      return series.reverse();
+    },
+    save: async (series: Series) => {
+      const db = await initDB();
+      await db.put('series', series);
+    },
+    delete: async (id: string) => {
+      const db = await initDB();
+      await db.delete('series', id);
+    }
+  },
+
   content: {
     list: async () => {
       const db = await initDB();

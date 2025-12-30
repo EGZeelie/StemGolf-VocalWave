@@ -1,36 +1,43 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PodcastProject, GenerationStatus, ProductionSettings, Chapter, DistributionMetadata, CreatorProfile, BlogPost } from '../types';
+import { PodcastProject, GenerationStatus, ProductionSettings, Chapter, DistributionMetadata, CreatorProfile, BlogPost, Series, YoutubeMetadata } from '../types';
 import Button from '../components/Button';
-import { Wand2, Play, Pause, Download, Save, RefreshCw, Volume2, Music, Mic2, Layers, Sliders, Flag, Sparkles, ChevronDown, ChevronUp, Globe, Rss, Calendar, CheckCircle, AlertCircle, Share2, Upload, Image as ImageIcon, FolderOpen, Plus, Copy, Trash2, X, Search, ArrowUpDown, Link, Loader2, XCircle, FileText } from 'lucide-react';
-import { generateAfrikaansScript, synthesizeSpeech, generateImage, generateBlogContent } from '../services/gemini';
+import { Wand2, Play, Pause, Download, Save, RefreshCw, Volume2, Music, Mic2, Layers, Sliders, Flag, Sparkles, ChevronDown, ChevronUp, Globe, Rss, Calendar, CheckCircle, AlertCircle, Share2, Upload, Image as ImageIcon, FolderOpen, Plus, Copy, Trash2, X, Search, ArrowUpDown, Link, Loader2, XCircle, FileText, ListMusic, Youtube, Video } from 'lucide-react';
+import { generateAfrikaansScript, synthesizeSpeech, generateImage, generateBlogContent, generateYoutubeMetadata } from '../services/gemini';
 import { mixPodcastAudio, audioBufferToWav } from '../services/audioUtils';
 import { generateRSSFeed, downloadRSS } from '../services/rssUtils';
 
 interface StudioProps {
   initialProject?: PodcastProject | null;
   projects: PodcastProject[];
+  seriesList: Series[];
   creatorProfile: CreatorProfile;
   onSave: (project: PodcastProject) => void;
   onSelectProject: (project: PodcastProject | null) => void;
   onDeleteProject: (id: string) => void;
   onDuplicateProject: (project: PodcastProject) => void;
   onCreateBlogPost: (post: BlogPost) => void;
+  onCreateSeries: (series: Series) => void;
 }
 
 const Studio: React.FC<StudioProps> = ({ 
   initialProject, 
   projects,
+  seriesList,
   creatorProfile,
   onSave,
   onSelectProject,
   onDeleteProject,
   onDuplicateProject,
-  onCreateBlogPost
+  onCreateBlogPost,
+  onCreateSeries
 }) => {
   // UI State
   const [isProjectListOpen, setIsProjectListOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
+  const [isCreatingSeries, setIsCreatingSeries] = useState(false);
+  const [newSeriesTitle, setNewSeriesTitle] = useState('');
+  const [newSeriesDesc, setNewSeriesDesc] = useState('');
 
   // Project State
   const [title, setTitle] = useState(initialProject?.title || 'Nuwe Episode');
@@ -38,6 +45,8 @@ const Studio: React.FC<StudioProps> = ({
   const [tone, setTone] = useState<'formal' | 'conversational' | 'storytelling'>(initialProject?.tone || 'conversational');
   const [voice, setVoice] = useState(initialProject?.voice || 'Fenrir');
   const [chapters, setChapters] = useState<Chapter[]>(initialProject?.chapters || []);
+  const [selectedSeriesId, setSelectedSeriesId] = useState<string>(initialProject?.seriesId || '');
+  const [youtubeMeta, setYoutubeMeta] = useState<YoutubeMetadata | undefined>(initialProject?.youtubeMetadata);
   
   // Metadata State
   const [metadata, setMetadata] = useState<DistributionMetadata>(initialProject?.metadata || {
@@ -101,6 +110,8 @@ const Studio: React.FC<StudioProps> = ({
       setMetadata(initialProject.metadata);
       setDistStatus(initialProject.distributionStatus);
       setSelectedPlatforms(initialProject.platforms || []);
+      setSelectedSeriesId(initialProject.seriesId || '');
+      setYoutubeMeta(initialProject.youtubeMetadata);
       setProdSettings({
         ...initialProject.productionSettings,
         introVolume: initialProject.productionSettings.introVolume ?? 0.5,
@@ -119,6 +130,8 @@ const Studio: React.FC<StudioProps> = ({
       setTone('conversational');
       setVoice('Fenrir');
       setChapters([]);
+      setSelectedSeriesId('');
+      setYoutubeMeta(undefined);
       setMetadata({
         author: creatorProfile.name || 'My Podcast',
         genre: 'Society & Culture',
@@ -259,9 +272,26 @@ const Studio: React.FC<StudioProps> = ({
       chapters,
       metadata,
       distributionStatus: distStatus,
-      platforms: selectedPlatforms
+      platforms: selectedPlatforms,
+      seriesId: selectedSeriesId || undefined,
+      youtubeMetadata: youtubeMeta
     });
     alert("Projek gestoor!");
+  };
+
+  const handleSaveNewSeries = () => {
+    if(!newSeriesTitle.trim()) return;
+    const newSeries: Series = {
+      id: `series_${Date.now()}`,
+      title: newSeriesTitle,
+      description: newSeriesDesc,
+      createdAt: Date.now()
+    };
+    onCreateSeries(newSeries);
+    setSelectedSeriesId(newSeries.id);
+    setIsCreatingSeries(false);
+    setNewSeriesTitle('');
+    setNewSeriesDesc('');
   };
 
   const handlePublish = async () => {
@@ -275,9 +305,38 @@ const Studio: React.FC<StudioProps> = ({
     selectedPlatforms.forEach(p => initialMap[p] = 'pending');
     setPlatformStatusMap(initialMap);
 
-    // Simulate publishing to each platform sequentially for effect
+    // Handle Youtube Special Generation
+    if (selectedPlatforms.includes('youtube')) {
+        setStatus('generating_youtube');
+        try {
+            // 1. Generate Metadata
+            const ytMeta = await generateYoutubeMetadata(title, content);
+            
+            // 2. Generate Thumbnail (16:9)
+            const thumbnailPrompt = `YouTube thumbnail for podcast about: ${title}. High quality, 4k, vivid colors, engaging.`;
+            const thumbnail = await generateImage(thumbnailPrompt, "16:9");
+
+            setYoutubeMeta({
+                title: ytMeta.title,
+                description: ytMeta.description,
+                tags: ytMeta.tags,
+                thumbnailUrl: thumbnail,
+                privacyStatus: 'public'
+            });
+            
+            // Mark youtube as done
+            setPlatformStatusMap(prev => ({ ...prev, youtube: 'success' }));
+        } catch (error) {
+            console.error("YouTube gen failed", error);
+            setPlatformStatusMap(prev => ({ ...prev, youtube: 'error' }));
+        }
+        setStatus('publishing'); // Revert back to finish others
+    }
+
+    // Simulate publishing to other platforms
     for (const platform of selectedPlatforms) {
-        await new Promise(r => setTimeout(r, 1500)); // Simulate API delay
+        if (platform === 'youtube') continue; // Already handled
+        await new Promise(r => setTimeout(r, 1000));
         setPlatformStatusMap(prev => ({ ...prev, [platform]: 'success' }));
     }
     
@@ -327,6 +386,8 @@ const Studio: React.FC<StudioProps> = ({
           chapters,
           metadata,
           distributionStatus: 'published',
+          seriesId: selectedSeriesId || undefined,
+          youtubeMetadata: youtubeMeta // Assuming state is updated, though useRef/handleSave handles it
         } as PodcastProject;
         
         const rssXml = generateRSSFeed(fullProject, 5000000); // Mock size
@@ -335,7 +396,9 @@ const Studio: React.FC<StudioProps> = ({
   };
 
   const togglePlatform = (id: string, isConnected: boolean) => {
-    if (!isConnected) {
+    // If user selects youtube, we don't strictly require connection for the generation part, 
+    // but in a real app we would. We'll allow it for the demo to show generation.
+    if (!isConnected && id !== 'youtube') {
         alert("Please connect this platform in your Creator Settings first.");
         return;
     }
@@ -370,7 +433,7 @@ const Studio: React.FC<StudioProps> = ({
     if (!imagePrompt) return;
     setIsGeneratingImage(true);
     try {
-      const base64Image = await generateImage(imagePrompt);
+      const base64Image = await generateImage(imagePrompt, "1:1");
       setMetadata({ ...metadata, coverArt: base64Image });
       setIsGeneratingImage(false);
       setShowImageGen(false);
@@ -395,6 +458,13 @@ const Studio: React.FC<StudioProps> = ({
         color: 'border-purple-600 bg-purple-900/10', 
         iconColor: 'bg-purple-600 border-purple-600',
         isConnected: !!creatorProfile.links.apple
+    },
+    {
+        id: 'youtube',
+        name: 'YouTube',
+        color: 'border-red-600 bg-red-900/10',
+        iconColor: 'bg-red-600 border-red-600',
+        isConnected: true // Always allowed for generation demo
     },
     { 
         id: 'rss', 
@@ -832,6 +902,65 @@ const Studio: React.FC<StudioProps> = ({
                       <h3 className="text-lg font-semibold text-white flex items-center gap-2 border-t border-[#333] pt-6">
                         <Rss className="w-5 h-5 text-orange-600" /> Episode Metadata
                       </h3>
+
+                      {/* Series Selection */}
+                      <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Series</label>
+                        <div className="flex gap-2">
+                          <select 
+                            value={selectedSeriesId}
+                            onChange={(e) => setSelectedSeriesId(e.target.value)}
+                            className="flex-1 bg-[#121212] text-white rounded-md border-[#333] shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                          >
+                            <option value="">-- No Series (Standalone) --</option>
+                            {seriesList.map(s => (
+                              <option key={s.id} value={s.id}>{s.title}</option>
+                            ))}
+                          </select>
+                          <Button 
+                            variant="secondary" 
+                            size="sm" 
+                            onClick={() => setIsCreatingSeries(true)}
+                            title="Create New Series"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* New Series Modal/Form */}
+                      {isCreatingSeries && (
+                        <div className="p-4 bg-[#1f1f1f] border border-[#333] rounded-lg animate-in fade-in slide-in-from-top-2">
+                          <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                            <ListMusic className="w-4 h-4" /> New Series
+                          </h4>
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-xs text-slate-400 mb-1">Series Title</label>
+                              <input 
+                                type="text"
+                                value={newSeriesTitle}
+                                onChange={(e) => setNewSeriesTitle(e.target.value)}
+                                className="w-full text-sm bg-[#121212] border border-[#333] rounded-md text-white px-2 py-1.5 focus:border-orange-500"
+                                placeholder="e.g. Tech Talk Daily"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-slate-400 mb-1">Description (Optional)</label>
+                              <textarea 
+                                value={newSeriesDesc}
+                                onChange={(e) => setNewSeriesDesc(e.target.value)}
+                                rows={2}
+                                className="w-full text-sm bg-[#121212] border border-[#333] rounded-md text-white px-2 py-1.5 focus:border-orange-500 resize-none"
+                              />
+                            </div>
+                            <div className="flex justify-end gap-2 pt-1">
+                              <Button size="sm" variant="ghost" onClick={() => setIsCreatingSeries(false)}>Cancel</Button>
+                              <Button size="sm" onClick={handleSaveNewSeries} disabled={!newSeriesTitle.trim()}>Create Series</Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       
                       <div className="space-y-4">
                          <div>
@@ -917,6 +1046,8 @@ const Studio: React.FC<StudioProps> = ({
                                       <div className="flex items-center gap-1.5 mt-0.5">
                                          {platform.isConnected ? (
                                            <span className="text-[10px] text-green-400 flex items-center gap-1"><Link className="w-3 h-3" /> Connected</span>
+                                         ) : platform.id === 'youtube' ? (
+                                            <span className="text-[10px] text-green-400 flex items-center gap-1"><Link className="w-3 h-3" /> Enabled</span>
                                          ) : (
                                            <span className="text-[10px] text-slate-500 flex items-center gap-1"><Link className="w-3 h-3" /> Not Configured</span>
                                          )}
@@ -936,6 +1067,40 @@ const Studio: React.FC<StudioProps> = ({
                             );
                          })}
                       </div>
+
+                      {/* Youtube Metadata Display (if generated) */}
+                      {youtubeMeta && (
+                          <div className="bg-[#181818] border border-red-900/30 rounded-xl p-4 mt-4 animate-in fade-in">
+                              <h4 className="flex items-center gap-2 text-sm font-bold text-white mb-3">
+                                  <Youtube className="w-4 h-4 text-red-500"/> Generated YouTube Assets
+                              </h4>
+                              <div className="space-y-4">
+                                  <div className="flex gap-4">
+                                      <div className="w-32 aspect-video bg-[#222] rounded-lg overflow-hidden flex-shrink-0">
+                                          {youtubeMeta.thumbnailUrl ? (
+                                              <img src={youtubeMeta.thumbnailUrl} className="w-full h-full object-cover" />
+                                          ) : <div className="w-full h-full flex items-center justify-center"><Video className="text-slate-500"/></div>}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                          <div className="text-xs text-slate-400 mb-1">Title</div>
+                                          <div className="text-sm font-medium text-white line-clamp-2 mb-2">{youtubeMeta.title}</div>
+                                          <div className="flex flex-wrap gap-1">
+                                              {youtubeMeta.tags.slice(0, 3).map(t => (
+                                                  <span key={t} className="text-[10px] bg-[#222] text-slate-300 px-1.5 py-0.5 rounded border border-[#333]">#{t.replace(/\s+/g, '')}</span>
+                                              ))}
+                                              {youtubeMeta.tags.length > 3 && <span className="text-[10px] text-slate-500">+{youtubeMeta.tags.length - 3} more</span>}
+                                          </div>
+                                      </div>
+                                  </div>
+                                  <div>
+                                      <div className="text-xs text-slate-400 mb-1">Description Preview</div>
+                                      <div className="text-xs text-slate-300 bg-[#121212] p-2 rounded border border-[#333] line-clamp-3">
+                                          {youtubeMeta.description}
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+                      )}
 
                       <div className="pt-4 border-t border-[#333]">
                          <h4 className="text-sm font-medium text-slate-400 mb-2">Schedule Publishing</h4>
@@ -1006,10 +1171,10 @@ const Studio: React.FC<StudioProps> = ({
                            size="lg" 
                            className="w-full text-lg py-4 shadow-lg shadow-orange-900/10"
                            disabled={!audioUrl || selectedPlatforms.length === 0}
-                           isLoading={status === 'publishing'}
+                           isLoading={status === 'publishing' || status === 'generating_youtube'}
                            onClick={handlePublish}
                         >
-                           {status === 'publishing' ? 'Distributing to Platforms...' : 'Publish Episode Now'}
+                           {status === 'generating_youtube' ? 'Generating YouTube Assets...' : status === 'publishing' ? 'Distributing to Platforms...' : 'Publish Episode Now'}
                         </Button>
                         <p className="text-xs text-slate-500">
                            By publishing, you confirm that you own all rights to the content.

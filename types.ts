@@ -25,6 +25,22 @@ export interface DistributionMetadata {
   publishDate?: string; // ISO String for scheduling
 }
 
+export interface YoutubeMetadata {
+  title: string;
+  description: string;
+  tags: string[];
+  thumbnailUrl?: string;
+  privacyStatus: 'public' | 'private' | 'unlisted';
+}
+
+export interface Series {
+  id: string;
+  title: string;
+  description?: string;
+  coverImage?: string;
+  createdAt: number;
+}
+
 export interface PodcastProject {
   id: string;
   title: string;
@@ -42,6 +58,8 @@ export interface PodcastProject {
   metadata: DistributionMetadata;
   distributionStatus: 'draft' | 'scheduled' | 'published' | 'failed';
   platforms?: string[]; // List of IDs like 'spotify', 'apple'
+  seriesId?: string; // Link to a Series
+  youtubeMetadata?: YoutubeMetadata;
 }
 
 export interface CreatorProfile {
@@ -55,6 +73,7 @@ export interface CreatorProfile {
     apple?: string;
     rss?: string;
     website?: string;
+    youtube?: string;
   };
   // Visual Customization
   theme: 'classic' | 'minimal' | 'bold';
@@ -96,4 +115,4 @@ export enum AppRoute {
 }
 
 // Gemini specific types usually come from the SDK, but we define internal mapped types here
-export type GenerationStatus = 'idle' | 'generating_script' | 'synthesizing_audio' | 'mixing' | 'ready' | 'error' | 'publishing';
+export type GenerationStatus = 'idle' | 'generating_script' | 'synthesizing_audio' | 'mixing' | 'ready' | 'error' | 'publishing' | 'generating_youtube';

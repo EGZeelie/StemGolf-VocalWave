@@ -6,7 +6,7 @@ import Analytics from './pages/Analytics';
 import CreatorSettings from './pages/CreatorSettings';
 import PublicPage from './pages/PublicPage';
 import BlogEditor from './pages/BlogEditor';
-import { AppRoute, PodcastProject, CreatorProfile, BlogPost } from './types';
+import { AppRoute, PodcastProject, CreatorProfile, BlogPost, Series } from './types';
 import { db } from './services/db';
 import { PixelService } from './services/pixel';
 import { Loader2 } from 'lucide-react';
@@ -113,6 +113,7 @@ const App: React.FC = () => {
   // State
   const [projects, setProjects] = useState<PodcastProject[]>([]);
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
+  const [seriesList, setSeriesList] = useState<Series[]>([]);
   const [profile, setProfile] = useState<CreatorProfile>(DEFAULT_PROFILE);
   
   const [editingProject, setEditingProject] = useState<PodcastProject | null>(null);
@@ -126,9 +127,10 @@ const App: React.FC = () => {
 
     const loadData = async () => {
       try {
-        const [loadedProjects, loadedBlogs, loadedProfile] = await Promise.all([
+        const [loadedProjects, loadedBlogs, loadedSeries, loadedProfile] = await Promise.all([
           db.projects.list(),
           db.content.list(),
+          db.series.list(),
           db.users.getProfile()
         ]);
 
@@ -142,9 +144,11 @@ const App: React.FC = () => {
           setProjects(MOCK_PROJECTS);
           setBlogPosts(MOCK_BLOGS);
           setProfile(DEFAULT_PROFILE);
+          setSeriesList([]);
         } else {
           setProjects(loadedProjects);
           setBlogPosts(loadedBlogs);
+          setSeriesList(loadedSeries);
           if (loadedProfile) setProfile(loadedProfile);
         }
       } catch (e) {
@@ -231,6 +235,11 @@ const App: React.FC = () => {
      }
   };
 
+  const handleCreateSeries = async (series: Series) => {
+    await db.series.save(series);
+    setSeriesList(prev => [series, ...prev]);
+  };
+
   if (isLoading) {
     return (
       <div className="h-screen w-full bg-[#020617] flex flex-col items-center justify-center text-white">
@@ -253,13 +262,15 @@ const App: React.FC = () => {
       {currentRoute === AppRoute.STUDIO && (
         <Studio 
           initialProject={editingProject}
-          projects={projects} 
+          projects={projects}
+          seriesList={seriesList} 
           creatorProfile={profile}
           onSave={handleSaveProject}
           onSelectProject={(p) => p ? handleEditProject(p) : handleNavigate(AppRoute.STUDIO)}
           onDeleteProject={handleDeleteProject}
           onDuplicateProject={handleDuplicateProject}
           onCreateBlogPost={handleSavePost}
+          onCreateSeries={handleCreateSeries}
         />
       )}
 

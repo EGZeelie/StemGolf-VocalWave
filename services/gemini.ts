@@ -1,4 +1,4 @@
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { decodeBase64Audio, audioBufferToWav } from "./audioUtils";
 
 const API_KEY = process.env.API_KEY || ''; // Ensure this is set in your environment
@@ -116,6 +116,47 @@ export const generateBlogContent = async (
 };
 
 /**
+ * Generates YouTube metadata (Title, Description, Tags, Keywords).
+ */
+export const generateYoutubeMetadata = async (
+  title: string,
+  scriptContent: string
+): Promise<{ title: string; description: string; tags: string[] }> => {
+  if (!API_KEY) throw new Error("API Key missing");
+
+  const systemInstruction = `You are a YouTube SEO expert.
+  Generate optimized metadata for a video podcast episode.
+  The video is in Afrikaans but metadata can be a mix of Afrikaans and English for reach.
+  
+  Output Format: JSON
+  - "title": A click-worthy, SEO-optimized YouTube title (max 100 chars).
+  - "description": A compelling video description (approx 200 words) including a hook, summary, and call to action.
+  - "tags": An array of 15-20 high-ranking tags/keywords (comma separated strings in the array).
+  `;
+
+  const userPrompt = `Podcast Title: ${title}\n\nScript/Content Summary:\n${scriptContent.slice(0, 3000)}`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: TEXT_MODEL,
+      contents: userPrompt,
+      config: {
+        systemInstruction: systemInstruction,
+        responseMimeType: "application/json",
+      },
+    });
+
+    const jsonText = response.text;
+    if (!jsonText) throw new Error("No metadata generated");
+
+    return JSON.parse(jsonText);
+  } catch (error) {
+    console.error("YouTube metadata generation error:", error);
+    throw error;
+  }
+};
+
+/**
  * Synthesizes speech from text using Gemini TTS.
  */
 export const synthesizeSpeech = async (
@@ -126,9 +167,17 @@ export const synthesizeSpeech = async (
 
   // Remove [Pause] markers or similar for TTS if model doesn't support them natively as silence.
   // Gemini TTS usually handles punctuation well. Let's strip explicit bracket markers to avoid it reading "Bracket Pause Bracket".
-  const cleanText = text.replace(/\[.*?\]/g, ' ... '); 
+  // Truncate text to avoid 500 errors on long inputs (approx 4000 chars safety limit)
+  let cleanText = text.replace(/\[.*?\]/g, ' ... ').trim();
+  if (cleanText.length > 4000) {
+      console.warn("Text truncated to 4000 characters for TTS stability.");
+      cleanText = cleanText.slice(0, 4000);
+  }
+
+  if (!cleanText) throw new Error("Text is empty");
 
   try {
+    // Note: contents must be an object with parts for TTS specifically in this preview version
     const response = await ai.models.generateContent({
       model: TTS_MODEL,
       contents: [{ parts: [{ text: cleanText }] }],
@@ -145,7 +194,7 @@ export const synthesizeSpeech = async (
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     
     if (!base64Audio) {
-      throw new Error("No audio data received from Gemini");
+      throw new Error("No audio data received from Gemini. Response might be empty.");
     }
 
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -166,11 +215,15 @@ export const synthesizeSpeech = async (
 };
 
 /**
- * Generates an image for podcast cover art using Gemini Flash Image.
+ * Generates an image for podcast cover art or thumbnails using Gemini Flash Image.
+ * aspectRatio supports "1:1" (default), "16:9", "4:3", etc.
  */
-export const generateImage = async (prompt: string): Promise<string> => {
+export const generateImage = async (prompt: string, aspectRatio: string = "1:1"): Promise<string> => {
   if (!API_KEY) throw new Error("API Key missing");
 
+  // Map common string requests to supported ratios if strictly needed, 
+  // but Gemini API usually takes "1:1", "16:9" directly.
+  
   try {
     const response = await ai.models.generateContent({
       model: IMAGE_MODEL,
@@ -179,7 +232,7 @@ export const generateImage = async (prompt: string): Promise<string> => {
       },
       config: {
         imageConfig: {
-            aspectRatio: "1:1"
+            aspectRatio: aspectRatio as any // Casting to any to avoid strict type checks if SDK types lag
         }
       }
     });
