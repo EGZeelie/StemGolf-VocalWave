@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PodcastProject, GenerationStatus, ProductionSettings, Chapter, DistributionMetadata, CreatorProfile, BlogPost, Series, YoutubeMetadata } from '../types';
 import Button from '../components/Button';
-import { Wand2, Play, Pause, Download, Save, RefreshCw, Volume2, Music, Mic2, Layers, Sliders, Flag, Sparkles, ChevronDown, ChevronUp, Globe, Rss, Calendar, CheckCircle, AlertCircle, Share2, Upload, Image as ImageIcon, FolderOpen, Plus, Copy, Trash2, X, Search, ArrowUpDown, Link, Loader2, XCircle, FileText, ListMusic, Youtube, Video, SidebarClose, SidebarOpen, FileAudio, MoreVertical } from 'lucide-react';
+import { Wand2, Play, Pause, Download, Save, RefreshCw, Volume2, Music, Mic2, Layers, Sliders, Flag, Sparkles, ChevronDown, ChevronUp, Globe, Rss, Calendar, CheckCircle, AlertCircle, Share2, Upload, Image as ImageIcon, FolderOpen, Plus, Copy, Trash2, X, Search, ArrowUpDown, Link, Loader2, XCircle, FileText, ListMusic, Youtube, Video, SidebarClose, SidebarOpen, FileAudio, MoreVertical, Mic, Square, Type, Gauge, MonitorPlay } from 'lucide-react';
 import { generateAfrikaansScript, synthesizeSpeech, generateImage, generateBlogContent, generateYoutubeMetadata } from '../services/gemini';
 import { mixPodcastAudio, audioBufferToWav } from '../services/audioUtils';
 import { generateRSSFeed, downloadRSS } from '../services/rssUtils';
@@ -99,7 +99,7 @@ const Studio: React.FC<StudioProps> = ({
   const outroUploadRef = useRef<HTMLInputElement>(null);
 
   // System State
-  const [activeTab, setActiveTab] = useState<'script' | 'production' | 'distribution'>('script');
+  const [activeTab, setActiveTab] = useState<'script' | 'recording' | 'production' | 'distribution'>('script');
   const [status, setStatus] = useState<GenerationStatus>('idle');
   
   // Audio State
@@ -108,6 +108,18 @@ const Studio: React.FC<StudioProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const projectId = useRef(initialProject?.id || `proj_${Date.now()}`);
+
+  // Recording & Teleprompter State
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [prompterSpeed, setPrompterSpeed] = useState(1); // 0 (stop) to 5 (fast)
+  const [prompterFontSize, setPrompterFontSize] = useState(24);
+  const [isPrompterPlaying, setIsPrompterPlaying] = useState(false);
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const prompterRef = useRef<HTMLDivElement>(null);
+  const recordingTimerRef = useRef<number | null>(null);
+  const scrollIntervalRef = useRef<number | null>(null);
 
   // Sync state with initialProject prop changes (switching projects)
   useEffect(() => {
@@ -172,6 +184,9 @@ const Studio: React.FC<StudioProps> = ({
         audioRef.current.pause();
         setIsPlaying(false);
     }
+    // Reset Recording State
+    setRecordedBlob(null);
+    setIsRecording(false);
   }, [initialProject, creatorProfile.name]);
 
   // Filter and Sort Projects
@@ -540,6 +555,92 @@ const Studio: React.FC<StudioProps> = ({
     }
   };
 
+  // --- RECORDING & TELEPROMPTER LOGIC ---
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: BlobPart[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        setRecordedBlob(blob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      setRecordingTime(0);
+      setIsPrompterPlaying(true); // Auto-start prompter
+
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingTime(t => t + 1);
+      }, 1000);
+
+    } catch (e) {
+      console.error("Recording error:", e);
+      alert("Could not access microphone. Please check permissions.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      setIsPrompterPlaying(false);
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    }
+  };
+
+  const saveRecordingToProject = async () => {
+    if (!recordedBlob) return;
+    try {
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        const arrayBuffer = await recordedBlob.arrayBuffer();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        
+        // Use this recording as the main voice track
+        setRawVoiceBuffer(audioBuffer);
+        
+        // Auto-mix it
+        await performMix(audioBuffer);
+        
+        alert("Recording saved! It is now the main voice track for this project. Check 'Production' tab to mix.");
+        setActiveTab('production');
+    } catch (e) {
+        console.error("Error saving recording", e);
+        alert("Failed to process recording.");
+    }
+  };
+
+  // Teleprompter Loop
+  useEffect(() => {
+    if (isPrompterPlaying && prompterRef.current) {
+        scrollIntervalRef.current = setInterval(() => {
+             if (prompterRef.current) {
+                 prompterRef.current.scrollTop += prompterSpeed;
+             }
+        }, 30);
+    } else {
+        if (scrollIntervalRef.current) clearInterval(scrollIntervalRef.current);
+    }
+    return () => {
+        if (scrollIntervalRef.current) clearInterval(scrollIntervalRef.current);
+    }
+  }, [isPrompterPlaying, prompterSpeed]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   // Define Platform Configs with Connection Logic
   const PLATFORMS = [
     { 
@@ -744,6 +845,12 @@ const Studio: React.FC<StudioProps> = ({
               <Mic2 className="w-4 h-4" /> Script
             </button>
             <button
+              onClick={() => setActiveTab('recording')}
+              className={`px-3 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'recording' ? 'bg-[#222] text-red-500 shadow-sm' : 'text-slate-500 hover:text-white'}`}
+            >
+              <Mic className="w-4 h-4" /> Recording
+            </button>
+            <button
               onClick={() => setActiveTab('production')}
               className={`px-3 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'production' ? 'bg-[#222] text-orange-500 shadow-sm' : 'text-slate-500 hover:text-white'}`}
             >
@@ -762,7 +869,7 @@ const Studio: React.FC<StudioProps> = ({
               Save
             </Button>
             {activeTab !== 'distribution' && (
-              <Button variant="primary" onClick={() => setActiveTab(activeTab === 'script' ? 'production' : 'distribution')}>
+              <Button variant="primary" onClick={() => setActiveTab(activeTab === 'script' ? 'recording' : activeTab === 'recording' ? 'production' : 'distribution')}>
                   Next <Play className="w-3 h-3 ml-2" />
               </Button>
             )}
@@ -863,6 +970,109 @@ const Studio: React.FC<StudioProps> = ({
                   onChange={(e) => setContent(e.target.value)}
                 />
               </>
+            )}
+
+            {activeTab === 'recording' && (
+              <div className="flex flex-col h-full">
+                 {/* Prompter View */}
+                 <div className="flex-1 relative overflow-hidden bg-black flex flex-col items-center">
+                    <div 
+                      ref={prompterRef}
+                      className="w-full h-full overflow-y-auto px-12 py-32 text-center hide-scrollbar scroll-smooth"
+                    >
+                        <p 
+                          className="font-bold text-white leading-relaxed max-w-3xl mx-auto whitespace-pre-wrap transition-all"
+                          style={{ fontSize: `${prompterFontSize}px` }}
+                        >
+                          {content || "No script content available. Switch to Script tab to add text."}
+                        </p>
+                        <div className="h-[50vh]"></div> {/* Bottom padding for scrolling */}
+                    </div>
+                    
+                    {/* Read Line Indicator */}
+                    <div className="absolute top-1/3 left-0 right-0 flex items-center pointer-events-none opacity-50">
+                        <div className="h-px bg-red-500 w-16"></div>
+                        <div className="flex-1 border-t border-dashed border-red-500/50"></div>
+                        <div className="h-px bg-red-500 w-16"></div>
+                    </div>
+                 </div>
+
+                 {/* Recording Controls */}
+                 <div className="bg-[#121212] border-t border-[#272727] p-4">
+                    <div className="flex items-center justify-between gap-6">
+                        
+                        {/* Teleprompter Settings */}
+                        <div className="flex items-center gap-6">
+                           <div className="space-y-1 w-32">
+                              <label className="text-[10px] uppercase font-bold text-slate-500 flex items-center gap-1">
+                                <Type className="w-3 h-3" /> Size: {prompterFontSize}px
+                              </label>
+                              <input 
+                                type="range" min="16" max="64" 
+                                value={prompterFontSize} 
+                                onChange={e => setPrompterFontSize(Number(e.target.value))}
+                                className="w-full accent-slate-500 h-1 bg-[#333] rounded-lg appearance-none"
+                              />
+                           </div>
+                           <div className="space-y-1 w-32">
+                              <label className="text-[10px] uppercase font-bold text-slate-500 flex items-center gap-1">
+                                <Gauge className="w-3 h-3" /> Scroll Speed: {prompterSpeed}
+                              </label>
+                              <input 
+                                type="range" min="0" max="5" step="0.5"
+                                value={prompterSpeed} 
+                                onChange={e => setPrompterSpeed(Number(e.target.value))}
+                                className="w-full accent-slate-500 h-1 bg-[#333] rounded-lg appearance-none"
+                              />
+                           </div>
+                           <button 
+                             onClick={() => setIsPrompterPlaying(!isPrompterPlaying)}
+                             className={`p-2 rounded-full border ${isPrompterPlaying ? 'bg-blue-900/20 text-blue-400 border-blue-800' : 'bg-[#1f1f1f] text-slate-400 border-[#333]'}`}
+                             title={isPrompterPlaying ? "Pause Scroll" : "Start Auto-Scroll"}
+                           >
+                              {isPrompterPlaying ? <Pause className="w-5 h-5" /> : <MonitorPlay className="w-5 h-5" />}
+                           </button>
+                        </div>
+
+                        {/* Record Buttons */}
+                        <div className="flex items-center gap-4">
+                            <div className="font-mono text-xl text-white w-16 text-center">
+                               {formatTime(recordingTime)}
+                            </div>
+                            
+                            {!isRecording ? (
+                              <button 
+                                onClick={startRecording}
+                                className="w-14 h-14 bg-red-600 hover:bg-red-700 rounded-full flex items-center justify-center text-white shadow-lg shadow-red-900/20 transition-transform hover:scale-105"
+                                title="Start Recording"
+                              >
+                                <Mic className="w-6 h-6 fill-current" />
+                              </button>
+                            ) : (
+                              <button 
+                                onClick={stopRecording}
+                                className="w-14 h-14 bg-slate-700 hover:bg-slate-600 rounded-lg flex items-center justify-center text-white shadow-lg animate-pulse"
+                                title="Stop Recording"
+                              >
+                                <Square className="w-6 h-6 fill-current" />
+                              </button>
+                            )}
+                        </div>
+
+                        {/* Save Action */}
+                        <div className="w-64 flex justify-end">
+                           {recordedBlob && !isRecording && (
+                             <div className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
+                                <audio src={URL.createObjectURL(recordedBlob)} controls className="h-8 w-32" />
+                                <Button size="sm" onClick={saveRecordingToProject} className="whitespace-nowrap">
+                                  Use Recording
+                                </Button>
+                             </div>
+                           )}
+                        </div>
+                    </div>
+                 </div>
+              </div>
             )}
 
             {activeTab === 'production' && (
@@ -1507,7 +1717,7 @@ const Studio: React.FC<StudioProps> = ({
                       disabled={!content.trim()}
                     >
                       <RefreshCw className="w-4 h-4 mr-2" />
-                      Generate Audio
+                      Generate AI Audio
                     </Button>
                   ) : (
                     <Button 

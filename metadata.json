@@ -1,5 +1,7 @@
 {
   "name": "StemGolf - Afrikaans AI Podcast Studio",
   "description": "A professional AI-powered platform for creating natural-sounding Afrikaans podcasts and voiceovers using advanced speech synthesis.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

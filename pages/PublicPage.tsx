@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CreatorProfile, PodcastProject, AppRoute, BlogPost } from '../types';
-import { Play, Pause, ArrowLeft, Headphones, Mail, ArrowRight, Instagram, Twitter, Facebook, Linkedin, Circle, Calendar, User, Clock, Search, Home, Info, Mic, FileText, Phone, AlertTriangle, X, Menu, Share2, Volume2, SkipBack, SkipForward } from 'lucide-react';
+import { Play, Pause, ArrowLeft, Headphones, Mail, ArrowRight, Instagram, Twitter, Facebook, Linkedin, Circle, Calendar, User, Clock, Search, Home, Info, Mic, FileText, Phone, AlertTriangle, X, Menu, Share2, Volume2, SkipBack, SkipForward, Youtube, Link as LinkIcon, ExternalLink } from 'lucide-react';
 
 interface PublicPageProps {
   profile: CreatorProfile;
@@ -223,10 +223,15 @@ const PublicPage: React.FC<PublicPageProps> = ({ profile, projects, posts, onNav
                <p className="text-sm text-slate-500 leading-relaxed mb-6">
                   Unlocking stories, sparking conversations, and inspiring change through AI-powered audio content.
                </p>
-               <div className="flex gap-4">
-                  <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all"><Instagram className="w-5 h-5" /></a>
-                  <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all"><Twitter className="w-5 h-5" /></a>
-                  <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all"><Linkedin className="w-5 h-5" /></a>
+               <div className="flex flex-wrap gap-4">
+                  {profile.links.youtube && (
+                      <a href={profile.links.youtube} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-white/10 transition-all"><Youtube className="w-5 h-5" /></a>
+                  )}
+                  {profile.customLinks?.map(link => (
+                      <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" title={link.label} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all">
+                          <LinkIcon className="w-4 h-4" />
+                      </a>
+                  ))}
                </div>
             </div>
             <div>

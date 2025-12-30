@@ -9,6 +9,22 @@ const TEXT_MODEL = 'gemini-3-flash-preview';
 const TTS_MODEL = 'gemini-2.5-flash-preview-tts';
 const IMAGE_MODEL = 'gemini-2.5-flash-image';
 
+// Helper to clean JSON string from markdown code blocks or extra text
+const cleanJsonString = (str: string): string => {
+  // Remove markdown code blocks if present
+  let cleaned = str.replace(/```json/g, '').replace(/```/g, '');
+  
+  // Find the first '{' and last '}' to handle potential preamble/postamble
+  const firstOpen = cleaned.indexOf('{');
+  const lastClose = cleaned.lastIndexOf('}');
+  
+  if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
+    cleaned = cleaned.substring(firstOpen, lastClose + 1);
+  }
+  
+  return cleaned.trim();
+};
+
 /**
  * Improves or generates Afrikaans script based on input.
  */
@@ -108,9 +124,15 @@ export const generateBlogContent = async (
     const jsonText = response.text;
     if (!jsonText) throw new Error("No text generated");
 
-    return JSON.parse(jsonText);
+    // Clean and parse
+    const cleanedJson = cleanJsonString(jsonText);
+    return JSON.parse(cleanedJson);
   } catch (error) {
     console.error("Blog generation error:", error);
+    // Log the actual text that failed to parse for debugging
+    if (error instanceof SyntaxError) {
+       console.error("Failed JSON text:", error);
+    }
     throw error;
   }
 };
@@ -149,7 +171,8 @@ export const generateYoutubeMetadata = async (
     const jsonText = response.text;
     if (!jsonText) throw new Error("No metadata generated");
 
-    return JSON.parse(jsonText);
+    const cleanedJson = cleanJsonString(jsonText);
+    return JSON.parse(cleanedJson);
   } catch (error) {
     console.error("YouTube metadata generation error:", error);
     throw error;

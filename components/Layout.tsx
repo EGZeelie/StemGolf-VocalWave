@@ -6,10 +6,11 @@ interface LayoutProps {
   children: React.ReactNode;
   currentRoute: AppRoute;
   onNavigate: (route: AppRoute) => void;
-  profile?: CreatorProfile; 
+  profile?: CreatorProfile;
+  onLogout?: () => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, currentRoute, onNavigate, profile }) => {
+const Layout: React.FC<LayoutProps> = ({ children, currentRoute, onNavigate, profile, onLogout }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Simple name fallback
@@ -99,17 +100,22 @@ const Layout: React.FC<LayoutProps> = ({ children, currentRoute, onNavigate, pro
         </div>
 
         <div className="p-4 border-t border-[#272727]">
-          {/* User Profile - Reverted to Simple view */}
-          <div className="w-full">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-medium text-white border border-slate-600">
+          {/* User Profile */}
+          <div className="w-full flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-medium text-white border border-slate-600 flex-shrink-0">
                 {displayInitials}
               </div>
-              <div className="flex-1 min-w-0">
+              <div className="min-w-0">
                 <p className="text-sm font-medium text-white truncate">{displayName}</p>
                 <p className="text-xs text-slate-500 truncate">Pro Plan</p>
               </div>
             </div>
+            {onLogout && (
+               <button onClick={onLogout} className="p-2 text-slate-500 hover:text-white hover:bg-[#1f1f1f] rounded-lg transition-colors" title="Sign Out">
+                 <LogOut className="w-4 h-4" />
+               </button>
+            )}
           </div>
         </div>
       </aside>
@@ -173,6 +179,18 @@ const Layout: React.FC<LayoutProps> = ({ children, currentRoute, onNavigate, pro
                     {item.label}
                   </button>
                 ))}
+                {onLogout && (
+                   <button
+                    onClick={() => {
+                      onLogout();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-4 text-base font-medium rounded-lg border bg-transparent border-[#333] text-red-400 mt-4"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    Sign Out
+                  </button>
+                )}
               </nav>
             </div>
           )}

@@ -1,3 +1,4 @@
+
 export interface Chapter {
   id: string;
   title: string;
@@ -64,6 +65,17 @@ export interface PodcastProject {
   youtubeMetadata?: YoutubeMetadata;
 }
 
+export interface CustomLink {
+  id: string;
+  label: string;
+  url: string;
+}
+
+export interface SeoSettings {
+  googleAnalyticsId?: string; // G-XXXXXXXXXX
+  googleSiteVerification?: string; // Meta tag content
+}
+
 export interface CreatorProfile {
   name: string;
   slug: string;
@@ -77,6 +89,8 @@ export interface CreatorProfile {
     website?: string;
     youtube?: string;
   };
+  customLinks: CustomLink[]; // Flexible array for other social/streaming links
+  seo?: SeoSettings; // New SEO configurations
   // Visual Customization
   theme: 'classic' | 'minimal' | 'bold';
   font: 'modern' | 'serif';
@@ -107,6 +121,7 @@ export interface VoiceOption {
 }
 
 export enum AppRoute {
+  LOGIN = 'login',
   DASHBOARD = 'dashboard',
   STUDIO = 'studio',
   BLOG_EDITOR = 'blog_editor',

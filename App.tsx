@@ -6,9 +6,11 @@ import Analytics from './pages/Analytics';
 import CreatorSettings from './pages/CreatorSettings';
 import PublicPage from './pages/PublicPage';
 import BlogEditor from './pages/BlogEditor';
+import Login from './pages/Login';
 import { AppRoute, PodcastProject, CreatorProfile, BlogPost, Series } from './types';
 import { db } from './services/db';
 import { PixelService } from './services/pixel';
+import { SEOService } from './services/seo';
 import { Loader2 } from 'lucide-react';
 
 // Placeholder data used for first-time initialization
@@ -101,6 +103,11 @@ const DEFAULT_PROFILE: CreatorProfile = {
     spotify: 'https://spotify.com',
     website: 'https://stemgolf.app'
   },
+  customLinks: [],
+  seo: {
+    googleAnalyticsId: '',
+    googleSiteVerification: ''
+  },
   theme: 'classic',
   font: 'modern',
   removeBranding: false
@@ -109,6 +116,8 @@ const DEFAULT_PROFILE: CreatorProfile = {
 const App: React.FC = () => {
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(AppRoute.DASHBOARD);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
 
   // State
   const [projects, setProjects] = useState<PodcastProject[]>([]);
@@ -120,9 +129,11 @@ const App: React.FC = () => {
 
   // Initial Data Load
   useEffect(() => {
+    // Check local session
+    const session = localStorage.getItem('stemgolf_session');
+    
     // Initialize Pixel
     PixelService.init();
-    // Track initial page load
     PixelService.trackPageView();
 
     const loadData = async () => {
@@ -134,23 +145,27 @@ const App: React.FC = () => {
           db.users.getProfile()
         ]);
 
-        // Seed default data if empty (first run)
-        if (loadedProjects.length === 0 && loadedBlogs.length === 0 && !loadedProfile) {
-          await Promise.all([
-             ...MOCK_PROJECTS.map(p => db.projects.save(p)),
-             ...MOCK_BLOGS.map(b => db.content.save(b)),
-             db.users.saveProfile(DEFAULT_PROFILE)
-          ]);
-          setProjects(MOCK_PROJECTS);
-          setBlogPosts(MOCK_BLOGS);
-          setProfile(DEFAULT_PROFILE);
-          setSeriesList([]);
-        } else {
-          setProjects(loadedProjects);
-          setBlogPosts(loadedBlogs);
-          setSeriesList(loadedSeries);
-          if (loadedProfile) setProfile(loadedProfile);
+        if (loadedProjects.length === 0 && loadedBlogs.length === 0) {
+           // We might seed mock data for projects/blogs even if not logged in for SEO/Public page? 
+           // But let's assume we seed them for the demo environment.
+           // However, we only seed profile on Login now.
         }
+
+        setProjects(loadedProjects.length > 0 ? loadedProjects : []);
+        setBlogPosts(loadedBlogs.length > 0 ? loadedBlogs : []);
+        setSeriesList(loadedSeries);
+
+        if (session) {
+          setIsAuthenticated(true);
+          if (loadedProfile) {
+            setProfile(loadedProfile);
+            SEOService.updateTags(loadedProfile.seo);
+          }
+        } else {
+           // Not authenticated, redirect to login unless viewing public page (logic handled in render)
+           setCurrentRoute(AppRoute.LOGIN);
+        }
+
       } catch (e) {
         console.error("Database load error:", e);
       } finally {
@@ -160,7 +175,49 @@ const App: React.FC = () => {
     loadData();
   }, []);
 
+  const handleLogin = async (method: 'google' | 'email') => {
+    setIsAuthLoading(true);
+    // Simulate network delay
+    await new Promise(r => setTimeout(r, 1500));
+    
+    // Create/Ensure profile exists
+    let userProfile = await db.users.getProfile();
+    
+    if (!userProfile) {
+      // Seed default profile on first login (Sign Up flow)
+      userProfile = DEFAULT_PROFILE;
+      await db.users.saveProfile(userProfile);
+      
+      // Also seed mock projects/blogs if empty
+      if (projects.length === 0) {
+          await Promise.all([
+             ...MOCK_PROJECTS.map(p => db.projects.save(p)),
+             ...MOCK_BLOGS.map(b => db.content.save(b))
+          ]);
+          setProjects(MOCK_PROJECTS);
+          setBlogPosts(MOCK_BLOGS);
+      }
+    }
+    
+    setProfile(userProfile);
+    SEOService.updateTags(userProfile.seo);
+    localStorage.setItem('stemgolf_session', 'true');
+    setIsAuthenticated(true);
+    setCurrentRoute(AppRoute.DASHBOARD);
+    setIsAuthLoading(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('stemgolf_session');
+    setIsAuthenticated(false);
+    setCurrentRoute(AppRoute.LOGIN);
+  };
+
   const handleNavigate = (route: AppRoute) => {
+    if (!isAuthenticated && route !== AppRoute.LOGIN && route !== AppRoute.PUBLIC_PAGE) {
+       setCurrentRoute(AppRoute.LOGIN);
+       return;
+    }
     setCurrentRoute(route);
     PixelService.trackPageView(); // Track route changes as PageViews
     if (route !== AppRoute.STUDIO) {
@@ -174,7 +231,7 @@ const App: React.FC = () => {
   };
 
   const handleSaveProject = async (project: PodcastProject) => {
-    // Track Studio usage (e.g. Content Generated)
+    // Track Studio usage
     PixelService.trackStudioUsage(project.title, project.duration || 0);
 
     const saved = await db.projects.save(project);
@@ -213,6 +270,7 @@ const App: React.FC = () => {
   const handleUpdateProfile = async (newProfile: CreatorProfile) => {
     await db.users.saveProfile(newProfile);
     setProfile(newProfile);
+    SEOService.updateTags(newProfile.seo);
   };
 
   const handleSavePost = async (post: BlogPost) => {
@@ -249,8 +307,13 @@ const App: React.FC = () => {
     );
   }
 
+  // Auth Gate
+  if (!isAuthenticated && currentRoute !== AppRoute.PUBLIC_PAGE) {
+     return <Login onLogin={handleLogin} isLoading={isAuthLoading} />;
+  }
+
   return (
-    <Layout currentRoute={currentRoute} onNavigate={handleNavigate} profile={profile}>
+    <Layout currentRoute={currentRoute} onNavigate={handleNavigate} profile={profile} onLogout={handleLogout}>
       {currentRoute === AppRoute.DASHBOARD && (
         <Dashboard 
           onNavigate={handleNavigate} 
