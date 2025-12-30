@@ -32,7 +32,8 @@ export const generateAfrikaansScript = async (
   prompt: string, 
   tone: 'formal' | 'conversational' | 'storytelling',
   length: 'short' | 'medium' | 'long' = 'medium',
-  topics: string = ''
+  topics: string = '',
+  hasCoHost: boolean = false
 ): Promise<string> => {
   if (!API_KEY) throw new Error("API Key missing");
 
@@ -52,6 +53,10 @@ export const generateAfrikaansScript = async (
     ? `Ensure the script specifically covers the following key topics: ${topics}.`
     : '';
 
+  const speakerInstruction = hasCoHost 
+    ? 'Write the script as a natural dialogue between two podcast hosts. Label the speakers as "Host" and "CoHost".'
+    : 'Write the script for a single host.';
+
   const systemInstruction = `You are an expert Afrikaans scriptwriter for podcasts and radio. 
   Your goal is to take user input (which might be rough notes, English text, or an article) 
   and convert it into a natural-sounding Afrikaans script. 
@@ -59,12 +64,14 @@ export const generateAfrikaansScript = async (
   Style Guidelines:
   - ${toneInstruction}
   - ${lengthInstruction}
+  - ${speakerInstruction}
   - Ensure correct grammar, idiom usage, and sentence structure for oral delivery.
   
   Content Requirements:
   - ${topicInstruction}
   
   Formatting:
+  - ${hasCoHost ? 'Use "Host:" and "CoHost:" prefixes to indicate who is speaking.' : 'Do not use speaker labels for single speaker scripts.'}
   - You may insert [Pause] markers where appropriate for dramatic effect.
   - Do not use markdown formatting like bold or italics.
   - Return ONLY the script text.`;
@@ -184,7 +191,8 @@ export const generateYoutubeMetadata = async (
  */
 export const synthesizeSpeech = async (
   text: string, 
-  voiceName: string = 'Kore'
+  voiceName: string = 'Kore',
+  coHostVoiceName?: string
 ): Promise<{ audioUrl: string; duration: number; buffer: AudioBuffer }> => {
   if (!API_KEY) throw new Error("API Key missing");
 
@@ -199,19 +207,41 @@ export const synthesizeSpeech = async (
 
   if (!cleanText) throw new Error("Text is empty");
 
-  try {
-    // Note: contents must be an object with parts for TTS specifically in this preview version
-    const response = await ai.models.generateContent({
-      model: TTS_MODEL,
-      contents: [{ parts: [{ text: cleanText }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
+  // Prepare Config
+  let config: any = {
+    responseModalities: [Modality.AUDIO],
+  };
+
+  // If a Co-Host is selected and not 'none', use Multi-Speaker config
+  if (coHostVoiceName && coHostVoiceName !== 'none') {
+      config.speechConfig = {
+          multiSpeakerVoiceConfig: {
+              speakerVoiceConfigs: [
+                  {
+                      speaker: 'Host',
+                      voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } }
+                  },
+                  {
+                      speaker: 'CoHost',
+                      voiceConfig: { prebuiltVoiceConfig: { voiceName: coHostVoiceName } }
+                  }
+              ]
+          }
+      };
+  } else {
+      // Single Speaker Config
+      config.speechConfig = {
           voiceConfig: {
             prebuiltVoiceConfig: { voiceName: voiceName },
           },
-        },
-      },
+      };
+  }
+
+  try {
+    const response = await ai.models.generateContent({
+      model: TTS_MODEL,
+      contents: [{ parts: [{ text: cleanText }] }],
+      config: config,
     });
 
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;

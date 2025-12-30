@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PodcastProject, GenerationStatus, ProductionSettings, Chapter, DistributionMetadata, CreatorProfile, BlogPost, Series, YoutubeMetadata } from '../types';
 import Button from '../components/Button';
-import { Wand2, Play, Pause, Download, Save, RefreshCw, Volume2, Music, Mic2, Layers, Sliders, Flag, Sparkles, ChevronDown, ChevronUp, Globe, Rss, Calendar, CheckCircle, AlertCircle, Share2, Upload, Image as ImageIcon, FolderOpen, Plus, Copy, Trash2, X, Search, ArrowUpDown, Link, Loader2, XCircle, FileText, ListMusic, Youtube, Video, SidebarClose, SidebarOpen, FileAudio, MoreVertical, Mic, Square, Type, Gauge, MonitorPlay } from 'lucide-react';
+import { Wand2, Play, Pause, Download, Save, RefreshCw, Volume2, Music, Mic2, Layers, Sliders, Flag, Sparkles, ChevronDown, ChevronUp, Globe, Rss, Calendar, CheckCircle, AlertCircle, Share2, Upload, Image as ImageIcon, FolderOpen, Plus, Copy, Trash2, X, Search, ArrowUpDown, Link, Loader2, XCircle, FileText, ListMusic, Youtube, Video, SidebarClose, SidebarOpen, FileAudio, MoreVertical, Mic, Square, Type, Gauge, MonitorPlay, Users } from 'lucide-react';
 import { generateAfrikaansScript, synthesizeSpeech, generateImage, generateBlogContent, generateYoutubeMetadata } from '../services/gemini';
 import { mixPodcastAudio, audioBufferToWav } from '../services/audioUtils';
 import { generateRSSFeed, downloadRSS } from '../services/rssUtils';
@@ -50,6 +50,7 @@ const Studio: React.FC<StudioProps> = ({
   const [content, setContent] = useState(initialProject?.content || '');
   const [tone, setTone] = useState<'formal' | 'conversational' | 'storytelling'>(initialProject?.tone || 'conversational');
   const [voice, setVoice] = useState(initialProject?.voice || 'Fenrir');
+  const [coHostVoice, setCoHostVoice] = useState(initialProject?.coHostVoice || 'none');
   const [chapters, setChapters] = useState<Chapter[]>(initialProject?.chapters || []);
   const [selectedSeriesId, setSelectedSeriesId] = useState<string>(initialProject?.seriesId || '');
   const [youtubeMeta, setYoutubeMeta] = useState<YoutubeMetadata | undefined>(initialProject?.youtubeMetadata);
@@ -128,6 +129,7 @@ const Studio: React.FC<StudioProps> = ({
       setContent(initialProject.content);
       setTone(initialProject.tone);
       setVoice(initialProject.voice);
+      setCoHostVoice(initialProject.coHostVoice || 'none');
       setChapters(initialProject.chapters);
       setMetadata(initialProject.metadata);
       setDistStatus(initialProject.distributionStatus);
@@ -151,6 +153,7 @@ const Studio: React.FC<StudioProps> = ({
       setContent('');
       setTone('conversational');
       setVoice('Fenrir');
+      setCoHostVoice('none');
       setChapters([]);
       setSelectedSeriesId('');
       setYoutubeMeta(undefined);
@@ -225,7 +228,8 @@ const Studio: React.FC<StudioProps> = ({
     setStatus('generating_script');
     try {
       const promptToUse = hasContent ? content : `Write a script about: ${scriptTopics}`;
-      const improvedScript = await generateAfrikaansScript(promptToUse, tone, scriptLength, scriptTopics);
+      const hasCoHost = coHostVoice !== 'none';
+      const improvedScript = await generateAfrikaansScript(promptToUse, tone, scriptLength, scriptTopics, hasCoHost);
       setContent(improvedScript);
       setStatus('idle');
       setShowAiOptions(false);
@@ -240,7 +244,8 @@ const Studio: React.FC<StudioProps> = ({
     if (!content.trim()) return;
     setStatus('synthesizing_audio');
     try {
-      const result = await synthesizeSpeech(content, voice);
+      // Pass coHostVoice to synthesis service
+      const result = await synthesizeSpeech(content, voice, coHostVoice);
       setRawVoiceBuffer(result.buffer); 
       await performMix(result.buffer);
       setStatus('ready');
@@ -305,6 +310,7 @@ const Studio: React.FC<StudioProps> = ({
       createdAt: initialProject?.createdAt || Date.now(),
       duration: rawVoiceBuffer?.duration,
       voice,
+      coHostVoice, // Save Co-Host Choice
       tone,
       productionSettings: prodSettings,
       chapters,
@@ -896,16 +902,41 @@ const Studio: React.FC<StudioProps> = ({
                           <option value="formal">Formal / News</option>
                           <option value="storytelling">Storytelling</option>
                         </select>
-                        <select 
-                          value={voice}
-                          onChange={(e) => setVoice(e.target.value)}
-                          className="text-sm bg-[#121212] text-slate-200 border-[#333] rounded-md py-1.5 focus:border-orange-500 focus:ring-orange-500"
-                        >
-                          <option value="Fenrir">Fenrir (M)</option>
-                          <option value="Kore">Kore (F)</option>
-                          <option value="Puck">Puck (M)</option>
-                          <option value="Zephyr">Zephyr (F)</option>
-                        </select>
+                        
+                        <div className="h-6 w-px bg-[#333] mx-1"></div>
+
+                        <div className="flex items-center gap-2 bg-[#121212] px-2 py-0.5 rounded border border-[#333]">
+                           <div className="text-xs text-slate-500 font-medium flex items-center gap-1"><Mic className="w-3 h-3" /> Host:</div>
+                           <select 
+                             value={voice}
+                             onChange={(e) => setVoice(e.target.value)}
+                             className="text-sm bg-transparent text-slate-200 border-none rounded-md py-1 focus:ring-0 cursor-pointer"
+                           >
+                             <option value="Fenrir">Fenrir (M)</option>
+                             <option value="Kore">Kore (F)</option>
+                             <option value="Puck">Puck (M)</option>
+                             <option value="Zephyr">Zephyr (F)</option>
+                             <option value="Charon">Charon (M)</option>
+                             <option value="Aoede">Aoede (F)</option>
+                           </select>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 bg-[#121212] px-2 py-0.5 rounded border border-[#333]">
+                           <div className="text-xs text-slate-500 font-medium flex items-center gap-1"><Users className="w-3 h-3" /> Co-Host:</div>
+                           <select 
+                             value={coHostVoice}
+                             onChange={(e) => setCoHostVoice(e.target.value)}
+                             className="text-sm bg-transparent text-slate-200 border-none rounded-md py-1 focus:ring-0 cursor-pointer"
+                           >
+                             <option value="none">None</option>
+                             <option value="Fenrir">Fenrir (M)</option>
+                             <option value="Kore">Kore (F)</option>
+                             <option value="Puck">Puck (M)</option>
+                             <option value="Zephyr">Zephyr (F)</option>
+                             <option value="Charon">Charon (M)</option>
+                             <option value="Aoede">Aoede (F)</option>
+                           </select>
+                        </div>
                     </div>
                     <div className="flex items-center gap-2">
                         <Button size="sm" variant="ghost" onClick={insertChapter} title="Insert Chapter Marker">
@@ -972,6 +1003,7 @@ const Studio: React.FC<StudioProps> = ({
               </>
             )}
 
+            {/* ... other tabs remain unchanged ... */}
             {activeTab === 'recording' && (
               <div className="flex flex-col h-full">
                  {/* Prompter View */}

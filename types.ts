@@ -54,6 +54,7 @@ export interface PodcastProject {
   createdAt: number;
   duration?: number; // in seconds
   voice: string;
+  coHostVoice?: string; // Optional second speaker
   tone: 'formal' | 'conversational' | 'storytelling';
   productionSettings: ProductionSettings;
   chapters: Chapter[];
