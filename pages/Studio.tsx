@@ -35,6 +35,7 @@ const Studio: React.FC<StudioProps> = ({
   const [isProjectListOpen, setIsProjectListOpen] = useState(true); // Default open for better discovery
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft' | 'scheduled'>('all');
   
   // Series Creation State
   const [isCreatingSeries, setIsCreatingSeries] = useState(false);
@@ -175,7 +176,11 @@ const Studio: React.FC<StudioProps> = ({
 
   // Filter and Sort Projects
   const filteredProjects = projects
-    .filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase()))
+    .filter(p => {
+        const matchesSearch = p.title.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesStatus = filterStatus === 'all' || p.distributionStatus === filterStatus;
+        return matchesSearch && matchesStatus;
+    })
     .sort((a, b) => {
       if (sortBy === 'date') {
         return b.createdAt - a.createdAt; 
@@ -354,6 +359,32 @@ const Studio: React.FC<StudioProps> = ({
     setNewSeriesCover('');
   };
 
+  const handleGenerateYoutubeAssets = async () => {
+    setStatus('generating_youtube');
+    try {
+        const ytMeta = await generateYoutubeMetadata(title, content);
+        
+        const thumbnailPrompt = `YouTube thumbnail for podcast about: ${title}. High quality, 4k, vivid colors, engaging.`;
+        const thumbnail = await generateImage(thumbnailPrompt, "16:9");
+
+        setYoutubeMeta({
+            title: ytMeta.title,
+            description: ytMeta.description,
+            tags: ytMeta.tags,
+            thumbnailUrl: thumbnail,
+            privacyStatus: 'public'
+        });
+        
+        // Reset specific platform status if regenerating
+        setPlatformStatusMap(prev => ({ ...prev, youtube: 'idle' }));
+    } catch (error) {
+        console.error("YouTube gen failed", error);
+        alert("Failed to generate YouTube assets.");
+    } finally {
+        setStatus('idle');
+    }
+  };
+
   const handlePublish = async () => {
     if (!audioUrl) return alert("Please generate audio before publishing.");
     if (selectedPlatforms.length === 0) return alert("Please select at least one platform.");
@@ -367,28 +398,34 @@ const Studio: React.FC<StudioProps> = ({
 
     // Handle Youtube Special Generation
     if (selectedPlatforms.includes('youtube')) {
-        setStatus('generating_youtube');
-        try {
-            // 1. Generate Metadata
-            const ytMeta = await generateYoutubeMetadata(title, content);
-            
-            // 2. Generate Thumbnail (16:9)
-            const thumbnailPrompt = `YouTube thumbnail for podcast about: ${title}. High quality, 4k, vivid colors, engaging.`;
-            const thumbnail = await generateImage(thumbnailPrompt, "16:9");
+        // If the user hasn't generated metadata manually yet, try to do it now
+        if (!youtubeMeta) {
+            setStatus('generating_youtube');
+            try {
+                // 1. Generate Metadata
+                const ytMeta = await generateYoutubeMetadata(title, content);
+                
+                // 2. Generate Thumbnail (16:9)
+                const thumbnailPrompt = `YouTube thumbnail for podcast about: ${title}. High quality, 4k, vivid colors, engaging.`;
+                const thumbnail = await generateImage(thumbnailPrompt, "16:9");
 
-            setYoutubeMeta({
-                title: ytMeta.title,
-                description: ytMeta.description,
-                tags: ytMeta.tags,
-                thumbnailUrl: thumbnail,
-                privacyStatus: 'public'
-            });
-            
-            // Mark youtube as done
-            setPlatformStatusMap(prev => ({ ...prev, youtube: 'success' }));
-        } catch (error) {
-            console.error("YouTube gen failed", error);
-            setPlatformStatusMap(prev => ({ ...prev, youtube: 'error' }));
+                setYoutubeMeta({
+                    title: ytMeta.title,
+                    description: ytMeta.description,
+                    tags: ytMeta.tags,
+                    thumbnailUrl: thumbnail,
+                    privacyStatus: 'public'
+                });
+                
+                // Mark youtube as done
+                setPlatformStatusMap(prev => ({ ...prev, youtube: 'success' }));
+            } catch (error) {
+                console.error("YouTube gen failed", error);
+                setPlatformStatusMap(prev => ({ ...prev, youtube: 'error' }));
+            }
+        } else {
+             // Already have meta, just mark as ready
+             setPlatformStatusMap(prev => ({ ...prev, youtube: 'success' }));
         }
         setStatus('publishing'); // Revert back to finish others
     }
@@ -573,16 +610,28 @@ const Studio: React.FC<StudioProps> = ({
                   className="w-full bg-[#1f1f1f] border border-[#333] text-sm rounded-lg pl-9 pr-2 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
                 />
             </div>
-            <div className="flex items-center justify-between text-xs text-slate-400 px-1">
-                <span className="flex items-center gap-1"><ArrowUpDown className="w-3 h-3" /> Sort by:</span>
+            <div className="flex items-center gap-2">
                 <select 
-                  value={sortBy} 
-                  onChange={(e) => setSortBy(e.target.value as 'date' | 'title')}
-                  className="bg-transparent border-none text-slate-300 focus:ring-0 p-0 text-xs cursor-pointer"
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value as any)}
+                  className="flex-1 bg-[#1f1f1f] border border-[#333] text-slate-300 text-xs rounded py-1.5 px-2 focus:ring-0 cursor-pointer"
                 >
-                    <option value="date">Date Created</option>
-                    <option value="title">Title (A-Z)</option>
+                    <option value="all">All Status</option>
+                    <option value="draft">Drafts</option>
+                    <option value="published">Published</option>
+                    <option value="scheduled">Scheduled</option>
                 </select>
+                <div className="flex items-center gap-1 bg-[#1f1f1f] border border-[#333] rounded px-2 py-1.5">
+                    <ArrowUpDown className="w-3 h-3 text-slate-500" />
+                    <select 
+                    value={sortBy} 
+                    onChange={(e) => setSortBy(e.target.value as 'date' | 'title')}
+                    className="bg-transparent border-none text-slate-300 focus:ring-0 p-0 text-xs cursor-pointer w-20"
+                    >
+                        <option value="date">Date</option>
+                        <option value="title">Name</option>
+                    </select>
+                </div>
             </div>
          </div>
 
@@ -606,16 +655,23 @@ const Studio: React.FC<StudioProps> = ({
                      <div className="font-medium text-white text-sm truncate">{p.title}</div>
                      <div className="text-xs text-slate-500 mt-2 flex items-center justify-between">
                        <span>{new Date(p.createdAt).toLocaleDateString()}</span>
-                       <span className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border ${
-                         p.distributionStatus === 'published' 
-                           ? 'bg-green-900/20 text-green-400 border-green-800' 
-                           : p.distributionStatus === 'scheduled'
-                           ? 'bg-blue-900/20 text-blue-400 border-blue-800'
-                           : 'bg-slate-800 text-slate-400 border-slate-700'
-                       }`}>
-                          {p.distributionStatus === 'published' && <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>}
-                          {p.distributionStatus}
-                       </span>
+                       <div className="flex items-center gap-2">
+                           {p.duration && (
+                               <span className="text-[10px] bg-[#222] px-1.5 py-0.5 rounded text-slate-400 font-mono">
+                                   {Math.floor(p.duration / 60)}:{Math.floor(p.duration % 60).toString().padStart(2, '0')}
+                               </span>
+                           )}
+                           <span className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border ${
+                             p.distributionStatus === 'published' 
+                               ? 'bg-green-900/20 text-green-400 border-green-800' 
+                               : p.distributionStatus === 'scheduled'
+                               ? 'bg-blue-900/20 text-blue-400 border-blue-800'
+                               : 'bg-slate-800 text-slate-400 border-slate-700'
+                           }`}>
+                              {p.distributionStatus === 'published' && <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>}
+                              {p.distributionStatus}
+                           </span>
+                       </div>
                      </div>
                    </div>
                    <div className="mt-3 pt-2 border-t border-[#272727] flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1208,36 +1264,64 @@ const Studio: React.FC<StudioProps> = ({
                         </div>
 
                         {/* Youtube Metadata Display (if generated) */}
-                        {youtubeMeta && (
-                            <div className="bg-[#181818] border border-red-900/30 rounded-xl p-4 mt-4 animate-in fade-in">
-                                <h4 className="flex items-center gap-2 text-sm font-bold text-white mb-3">
-                                    <Youtube className="w-4 h-4 text-red-500"/> Generated YouTube Assets
-                                </h4>
-                                <div className="space-y-4">
-                                    <div className="flex gap-4">
-                                        <div className="w-32 aspect-video bg-[#222] rounded-lg overflow-hidden flex-shrink-0">
-                                            {youtubeMeta.thumbnailUrl ? (
-                                                <img src={youtubeMeta.thumbnailUrl} className="w-full h-full object-cover" />
-                                            ) : <div className="w-full h-full flex items-center justify-center"><Video className="text-slate-500"/></div>}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="text-xs text-slate-400 mb-1">Title</div>
-                                            <div className="text-sm font-medium text-white line-clamp-2 mb-2">{youtubeMeta.title}</div>
-                                            <div className="flex flex-wrap gap-1">
-                                                {youtubeMeta.tags.slice(0, 3).map(t => (
-                                                    <span key={t} className="text-[10px] bg-[#222] text-slate-300 px-1.5 py-0.5 rounded border border-[#333]">#{t.replace(/\s+/g, '')}</span>
-                                                ))}
-                                                {youtubeMeta.tags.length > 3 && <span className="text-[10px] text-slate-500">+{youtubeMeta.tags.length - 3} more</span>}
+                        {selectedPlatforms.includes('youtube') && (
+                            <div className="bg-[#181818] border border-red-900/30 rounded-xl p-6 mt-6 animate-in fade-in">
+                                <div className="flex items-center justify-between mb-4">
+                                     <h4 className="flex items-center gap-2 text-sm font-bold text-white">
+                                        <Youtube className="w-5 h-5 text-red-500"/> YouTube Optimization
+                                    </h4>
+                                    <Button size="sm" variant="secondary" onClick={handleGenerateYoutubeAssets} isLoading={status === 'generating_youtube'}>
+                                        {youtubeMeta ? <><RefreshCw className="w-3 h-3 mr-2"/> Regenerate</> : <><Sparkles className="w-3 h-3 mr-2"/> Generate Assets</>}
+                                    </Button>
+                                </div>
+
+                                {!youtubeMeta ? (
+                                    <div className="text-center py-8 border border-dashed border-[#333] rounded-lg bg-[#1f1f1f]/50">
+                                        <p className="text-slate-400 text-sm mb-3">Generate SEO-optimized title, description, tags and thumbnail from your script.</p>
+                                        <Button size="sm" onClick={handleGenerateYoutubeAssets}>Generate Now</Button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {/* Editable Fields */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-slate-500 uppercase">Thumbnail</label>
+                                                <div className="aspect-video bg-[#222] rounded-lg overflow-hidden relative group">
+                                                     {youtubeMeta.thumbnailUrl ? (
+                                                        <img src={youtubeMeta.thumbnailUrl} className="w-full h-full object-cover" />
+                                                     ) : <div className="w-full h-full flex items-center justify-center"><Video className="text-slate-500"/></div>}
+                                                </div>
+                                            </div>
+                                            <div className="md:col-span-2 space-y-4">
+                                                <div>
+                                                    <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Video Title</label>
+                                                    <input 
+                                                        value={youtubeMeta.title}
+                                                        onChange={(e) => setYoutubeMeta({...youtubeMeta, title: e.target.value})}
+                                                        className="w-full bg-[#121212] border border-[#333] rounded-md px-3 py-2 text-sm text-white focus:border-red-500"
+                                                    />
+                                                </div>
+                                                <div>
+                                                     <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Description</label>
+                                                     <textarea 
+                                                        value={youtubeMeta.description}
+                                                        onChange={(e) => setYoutubeMeta({...youtubeMeta, description: e.target.value})}
+                                                        rows={4}
+                                                        className="w-full bg-[#121212] border border-[#333] rounded-md px-3 py-2 text-sm text-white focus:border-red-500 resize-none"
+                                                    />
+                                                </div>
+                                                <div>
+                                                     <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Tags</label>
+                                                     <input 
+                                                        value={youtubeMeta.tags.join(', ')}
+                                                        onChange={(e) => setYoutubeMeta({...youtubeMeta, tags: e.target.value.split(',').map(t => t.trim())})}
+                                                        className="w-full bg-[#121212] border border-[#333] rounded-md px-3 py-2 text-sm text-slate-300 focus:border-red-500"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                    <div>
-                                        <div className="text-xs text-slate-400 mb-1">Description Preview</div>
-                                        <div className="text-xs text-slate-300 bg-[#121212] p-2 rounded border border-[#333] line-clamp-3">
-                                            {youtubeMeta.description}
-                                        </div>
-                                    </div>
-                                </div>
+                                )}
                             </div>
                         )}
 

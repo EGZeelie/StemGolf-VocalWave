@@ -91,7 +91,7 @@ const loadAudio = async (url: string): Promise<AudioBuffer> => {
 
 // Generates a simple synthesized jingle so we don't rely on external assets
 const generateJingle = (type: 'news' | 'story' | 'upbeat', ctx: BaseAudioContext): AudioBuffer => {
-  const duration = 4; // seconds
+  const duration = 8; // Increased duration for better transitions (was 4)
   const buffer = ctx.createBuffer(2, ctx.sampleRate * duration, ctx.sampleRate);
   const left = buffer.getChannelData(0);
   const right = buffer.getChannelData(1);
@@ -102,19 +102,25 @@ const generateJingle = (type: 'news' | 'story' | 'upbeat', ctx: BaseAudioContext
     let val = 0;
     
     if (type === 'news') {
-      // Fast, rhythmic pulses
+      // Fast, rhythmic pulses, news ticker style
       val = Math.sin(t * 440 * 2 * Math.PI) * Math.exp(-4 * (t % 0.5)); 
-      val += Math.sin(t * 880 * 2 * Math.PI) * Math.exp(-8 * (t % 0.25)) * 0.5;
+      val += Math.sin(t * 880 * 2 * Math.PI) * Math.exp(-8 * (t % 0.25)) * 0.3;
+      // Add a bass pulse
+      val += Math.sin(t * 110 * 2 * Math.PI) * 0.4;
     } else if (type === 'story') {
-      // Slow, sweeping pad
+      // Slow, sweeping pad, atmospheric
       val = Math.sin(t * 220 * 2 * Math.PI) * 0.5;
       val += Math.sin(t * 330 * 2 * Math.PI + t) * 0.3; // Slight detune
-      val *= Math.min(t, 1) * Math.min(duration - t, 1); // Fade in/out
+      // Add some slow modulation
+      val *= (0.8 + 0.2 * Math.sin(t * 0.5 * 2 * Math.PI)); 
     } else {
-      // Upbeat arpeggio
-      const note = Math.floor(t * 8) % 4; // Change note every 1/8th sec
+      // Upbeat arpeggio, funky
+      const beat = t * 4; // 120 BPM approx
+      const note = Math.floor(beat) % 4; // Change note every beat
+      const subBeat = Math.floor(t * 16) % 4;
       const freq = 440 * [1, 1.25, 1.5, 2][note]; // Major chord
       val = Math.sin(i / ctx.sampleRate * freq * 2 * Math.PI) * 0.3;
+      if (subBeat === 0) val += 0.2; // Kick drum simulation
     }
     
     left[i] = val;
@@ -134,80 +140,115 @@ export const mixPodcastAudio = async (
   outroVolume: number = 0.5,
   voiceVolume: number = 1.0
 ): Promise<AudioBuffer> => {
-  // We use OfflineAudioContext to render the final mix faster than real-time
   const sampleRate = 24000;
   
-  // Calculate roughly needed duration (will truncate later if needed, but OAC needs fixed length)
-  const estimatedDuration = (voiceBuffer.duration / speed) + 30; // +30s buffer for intros/outros
-  const offlineCtx = new OfflineAudioContext(2, estimatedDuration * sampleRate, sampleRate);
-
-  // Helper to play buffer with volume
-  const playTrack = (buffer: AudioBuffer, time: number, vol: number) => {
-    const src = offlineCtx.createBufferSource();
-    src.buffer = buffer;
-    const gain = offlineCtx.createGain();
-    gain.gain.value = vol;
-    src.connect(gain);
-    gain.connect(offlineCtx.destination);
-    src.start(time);
-  };
-
-  // 1. Prepare Jingles/Custom Audio
+  // 1. Prepare buffers
   let intro: AudioBuffer | null = null;
   let outro: AudioBuffer | null = null;
+
+  // Use a temporary context to generate/decode jingles if needed
+  const tempCtx = new OfflineAudioContext(1, 1, sampleRate);
 
   try {
     if (introType === 'custom' && customIntroUrl) {
         intro = await loadAudio(customIntroUrl);
     } else if (introType !== 'none' && introType !== 'custom') {
-        intro = generateJingle(introType as 'news'|'story'|'upbeat', offlineCtx);
+        intro = generateJingle(introType as 'news'|'story'|'upbeat', tempCtx);
     }
 
     if (outroType === 'custom' && customOutroUrl) {
         outro = await loadAudio(customOutroUrl);
     } else if (outroType !== 'none' && outroType !== 'custom') {
-        outro = generateJingle(outroType as 'news'|'story'|'upbeat', offlineCtx);
+        outro = generateJingle(outroType as 'news'|'story'|'upbeat', tempCtx);
     }
   } catch (err) {
       console.warn("Error loading custom audio", err);
   }
 
-  // 2. Schedule Intro
-  let currentTime = 0;
+  // 2. Calculate Timelines & Overlaps
+  const introDuration = intro ? intro.duration : 0;
+  const voiceRealDuration = voiceBuffer.duration / speed;
+  const outroDuration = outro ? outro.duration : 0;
+
+  // We want the intro music to duck under the voice for a bit, or fade out.
+  // Overlap: The amount of time the voice overlaps with the END of the intro
+  const introOverlap = intro ? Math.min(3.0, introDuration / 2) : 0; 
+  
+  // Overlap: The amount of time the outro overlaps with the END of the voice
+  const outroOverlap = outro ? Math.min(3.0, outroDuration / 2) : 0;
+
+  const voiceStartTime = Math.max(0, introDuration - introOverlap);
+  const outroStartTime = voiceStartTime + voiceRealDuration - outroOverlap;
+  
+  const totalDuration = Math.max(
+      introDuration,
+      voiceStartTime + voiceRealDuration,
+      outroStartTime + outroDuration
+  ) + 1.0; // +1s Safety buffer
+
+  const offlineCtx = new OfflineAudioContext(2, totalDuration * sampleRate, sampleRate);
+
+  // Helper to schedule buffer with fades
+  const scheduleTrack = (
+      buffer: AudioBuffer, 
+      startTime: number, 
+      maxVol: number, 
+      fadeInDuration: number = 0, 
+      fadeOutDuration: number = 0,
+      playbackRate: number = 1.0
+  ) => {
+      const src = offlineCtx.createBufferSource();
+      src.buffer = buffer;
+      src.playbackRate.value = playbackRate;
+      
+      const gain = offlineCtx.createGain();
+      
+      // Calculate real duration of the clip in the timeline
+      const clipDuration = buffer.duration / playbackRate;
+      const endTime = startTime + clipDuration;
+
+      // Initial Volume
+      if (fadeInDuration > 0) {
+          gain.gain.setValueAtTime(0, startTime);
+          gain.gain.linearRampToValueAtTime(maxVol, Math.min(endTime, startTime + fadeInDuration));
+      } else {
+          gain.gain.setValueAtTime(maxVol, startTime);
+      }
+
+      // Fade Out
+      if (fadeOutDuration > 0) {
+          // Ensure we don't start fading out before we finish fading in if clip is super short
+          const fadeOutStart = Math.max(startTime + fadeInDuration, endTime - fadeOutDuration);
+          gain.gain.setValueAtTime(maxVol, fadeOutStart);
+          gain.gain.linearRampToValueAtTime(0, endTime);
+      } else {
+          gain.gain.setValueAtTime(maxVol, endTime - 0.01);
+          gain.gain.linearRampToValueAtTime(0, endTime); // Tiny fade to avoid click
+      }
+
+      src.connect(gain);
+      gain.connect(offlineCtx.destination);
+      src.start(startTime);
+  };
+
+  // --- SCHEDULE TRACKS ---
+
+  // 1. Intro
   if (intro) {
-    playTrack(intro, 0, introVolume);
-    // Overlap voice with end of intro by 1.5 second (or less if intro is short)
-    const overlap = Math.min(1.5, intro.duration);
-    currentTime += Math.max(0, intro.duration - overlap); 
+      // Intro starts at 0. Fades in quickly (0.5s). Fades out slowly under the voice (introOverlap).
+      scheduleTrack(intro, 0, introVolume, 0.5, introOverlap);
   }
 
-  // 3. Schedule Voice
-  const voiceSrc = offlineCtx.createBufferSource();
-  voiceSrc.buffer = voiceBuffer;
-  voiceSrc.playbackRate.value = speed; // Apply speed here physically
-  
-  // Apply voice volume
-  const voiceGain = offlineCtx.createGain();
-  voiceGain.gain.value = voiceVolume;
-  
-  voiceSrc.connect(voiceGain);
-  voiceGain.connect(offlineCtx.destination);
-  
-  voiceSrc.start(currentTime);
-  
-  const voiceRealDuration = voiceBuffer.duration / speed;
-  currentTime += voiceRealDuration;
+  // 2. Voice
+  // Voice starts at voiceStartTime. Tiny fade edges to prevent clicks.
+  scheduleTrack(voiceBuffer, voiceStartTime, voiceVolume, 0.1, 0.1, speed);
 
-  // 4. Schedule Outro
+  // 3. Outro
   if (outro) {
-    // Overlap outro with end of voice by 1.0 second
-    const overlap = 1.0;
-    const startOutro = Math.max(0, currentTime - overlap);
-    playTrack(outro, startOutro, outroVolume);
+      // Outro starts at outroStartTime. Fades in slowly under the voice (outroOverlap). Fades out at end (3s).
+      scheduleTrack(outro, outroStartTime, outroVolume, outroOverlap, 3.0);
   }
 
   // Render
-  const renderedBuffer = await offlineCtx.startRendering();
-  
-  return renderedBuffer;
+  return await offlineCtx.startRendering();
 };
