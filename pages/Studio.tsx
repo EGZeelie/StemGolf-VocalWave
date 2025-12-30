@@ -1,0 +1,1109 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { PodcastProject, GenerationStatus, ProductionSettings, Chapter, DistributionMetadata, CreatorProfile, BlogPost } from '../types';
+import Button from '../components/Button';
+import { Wand2, Play, Pause, Download, Save, RefreshCw, Volume2, Music, Mic2, Layers, Sliders, Flag, Sparkles, ChevronDown, ChevronUp, Globe, Rss, Calendar, CheckCircle, AlertCircle, Share2, Upload, Image as ImageIcon, FolderOpen, Plus, Copy, Trash2, X, Search, ArrowUpDown, Link, Loader2, XCircle, FileText } from 'lucide-react';
+import { generateAfrikaansScript, synthesizeSpeech, generateImage, generateBlogContent } from '../services/gemini';
+import { mixPodcastAudio, audioBufferToWav } from '../services/audioUtils';
+import { generateRSSFeed, downloadRSS } from '../services/rssUtils';
+
+interface StudioProps {
+  initialProject?: PodcastProject | null;
+  projects: PodcastProject[];
+  creatorProfile: CreatorProfile;
+  onSave: (project: PodcastProject) => void;
+  onSelectProject: (project: PodcastProject | null) => void;
+  onDeleteProject: (id: string) => void;
+  onDuplicateProject: (project: PodcastProject) => void;
+  onCreateBlogPost: (post: BlogPost) => void;
+}
+
+const Studio: React.FC<StudioProps> = ({ 
+  initialProject, 
+  projects,
+  creatorProfile,
+  onSave,
+  onSelectProject,
+  onDeleteProject,
+  onDuplicateProject,
+  onCreateBlogPost
+}) => {
+  // UI State
+  const [isProjectListOpen, setIsProjectListOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
+
+  // Project State
+  const [title, setTitle] = useState(initialProject?.title || 'Nuwe Episode');
+  const [content, setContent] = useState(initialProject?.content || '');
+  const [tone, setTone] = useState<'formal' | 'conversational' | 'storytelling'>(initialProject?.tone || 'conversational');
+  const [voice, setVoice] = useState(initialProject?.voice || 'Fenrir');
+  const [chapters, setChapters] = useState<Chapter[]>(initialProject?.chapters || []);
+  
+  // Metadata State
+  const [metadata, setMetadata] = useState<DistributionMetadata>(initialProject?.metadata || {
+    author: creatorProfile.name || 'My Podcast',
+    genre: 'Society & Culture',
+    season: 1,
+    episode: 1,
+    type: 'full',
+    explicit: false,
+    publishDate: '',
+  });
+
+  const [distStatus, setDistStatus] = useState<'draft' | 'scheduled' | 'published' | 'failed'>(initialProject?.distributionStatus || 'draft');
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(initialProject?.platforms || []);
+  const [autoGenBlog, setAutoGenBlog] = useState(false);
+  
+  // Publishing Status Map (Granular tracking)
+  const [platformStatusMap, setPlatformStatusMap] = useState<Record<string, 'idle' | 'pending' | 'success' | 'error'>>({});
+
+  // AI Gen State (Script)
+  const [scriptLength, setScriptLength] = useState<'short' | 'medium' | 'long'>('medium');
+  const [scriptTopics, setScriptTopics] = useState('');
+  const [showAiOptions, setShowAiOptions] = useState(false);
+
+  // AI Gen State (Image)
+  const [showImageGen, setShowImageGen] = useState(false);
+  const [imagePrompt, setImagePrompt] = useState('');
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Production State
+  const [prodSettings, setProdSettings] = useState<ProductionSettings>(initialProject?.productionSettings || {
+    introMusic: 'none',
+    outroMusic: 'none',
+    playbackSpeed: 1.0,
+    pitch: 0,
+    introVolume: 0.5,
+    outroVolume: 0.5,
+    voiceVolume: 1.0
+  });
+
+  // System State
+  const [activeTab, setActiveTab] = useState<'script' | 'production' | 'distribution'>('script');
+  const [status, setStatus] = useState<GenerationStatus>('idle');
+  
+  // Audio State
+  const [audioUrl, setAudioUrl] = useState<string | null>(initialProject?.audioUrl || null);
+  const [rawVoiceBuffer, setRawVoiceBuffer] = useState<AudioBuffer | null>(null); // Store raw voice for remixing
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const projectId = useRef(initialProject?.id || `proj_${Date.now()}`);
+
+  // Sync state with initialProject prop changes (switching projects)
+  useEffect(() => {
+    if (initialProject) {
+      setTitle(initialProject.title);
+      setContent(initialProject.content);
+      setTone(initialProject.tone);
+      setVoice(initialProject.voice);
+      setChapters(initialProject.chapters);
+      setMetadata(initialProject.metadata);
+      setDistStatus(initialProject.distributionStatus);
+      setSelectedPlatforms(initialProject.platforms || []);
+      setProdSettings({
+        ...initialProject.productionSettings,
+        introVolume: initialProject.productionSettings.introVolume ?? 0.5,
+        outroVolume: initialProject.productionSettings.outroVolume ?? 0.5,
+        voiceVolume: initialProject.productionSettings.voiceVolume ?? 1.0
+      });
+      setAudioUrl(initialProject.audioUrl || null);
+      projectId.current = initialProject.id;
+      setRawVoiceBuffer(null); 
+      setPlatformStatusMap({}); // Reset status map on load
+      setAutoGenBlog(false);
+    } else {
+      // Reset for New Project
+      setTitle('Nuwe Episode');
+      setContent('');
+      setTone('conversational');
+      setVoice('Fenrir');
+      setChapters([]);
+      setMetadata({
+        author: creatorProfile.name || 'My Podcast',
+        genre: 'Society & Culture',
+        season: 1,
+        episode: 1,
+        type: 'full',
+        explicit: false,
+        publishDate: '',
+      });
+      setDistStatus('draft');
+      setSelectedPlatforms([]);
+      setProdSettings({
+        introMusic: 'none',
+        outroMusic: 'none',
+        playbackSpeed: 1.0,
+        pitch: 0,
+        introVolume: 0.5,
+        outroVolume: 0.5,
+        voiceVolume: 1.0
+      });
+      setAudioUrl(null);
+      setRawVoiceBuffer(null);
+      setPlatformStatusMap({});
+      setAutoGenBlog(false);
+      projectId.current = `proj_${Date.now()}`;
+    }
+    if (audioRef.current) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+    }
+  }, [initialProject, creatorProfile.name]);
+
+  // Filter and Sort Projects
+  const filteredProjects = projects
+    .filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'date') {
+        return b.createdAt - a.createdAt; 
+      } else {
+        return a.title.localeCompare(b.title); 
+      }
+    });
+
+  // --- Handlers ---
+
+  const handleGenerateScript = async () => {
+    const hasContent = content.trim().length > 0;
+    const hasTopics = scriptTopics.trim().length > 0;
+
+    if (!hasContent && !hasTopics) {
+      alert("Please write some rough content or enter topics to generate a script.");
+      return;
+    }
+
+    setStatus('generating_script');
+    try {
+      const promptToUse = hasContent ? content : `Write a script about: ${scriptTopics}`;
+      const improvedScript = await generateAfrikaansScript(promptToUse, tone, scriptLength, scriptTopics);
+      setContent(improvedScript);
+      setStatus('idle');
+      setShowAiOptions(false);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to generate script. Please check your API key and connection.");
+      setStatus('error');
+    }
+  };
+
+  const handleSynthesize = async () => {
+    if (!content.trim()) return;
+    setStatus('synthesizing_audio');
+    try {
+      const result = await synthesizeSpeech(content, voice);
+      setRawVoiceBuffer(result.buffer); 
+      await performMix(result.buffer);
+      setStatus('ready');
+    } catch (e) {
+      alert("Failed to synthesize audio.");
+      setStatus('error');
+    }
+  };
+
+  const performMix = async (bufferToMix: AudioBuffer | null = rawVoiceBuffer) => {
+    if (!bufferToMix) return;
+    setStatus('mixing');
+    try {
+      const mixedBuffer = await mixPodcastAudio(
+        bufferToMix,
+        prodSettings.introMusic || 'none',
+        prodSettings.outroMusic || 'none',
+        prodSettings.playbackSpeed,
+        prodSettings.introVolume ?? 0.5,
+        prodSettings.outroVolume ?? 0.5,
+        prodSettings.voiceVolume ?? 1.0
+      );
+      
+      const wavBlob = audioBufferToWav(mixedBuffer);
+      const newUrl = URL.createObjectURL(wavBlob);
+      setAudioUrl(newUrl);
+      setStatus('ready');
+    } catch (e) {
+      console.error(e);
+      setStatus('error');
+    }
+  };
+
+  useEffect(() => {
+    if (status === 'ready' && rawVoiceBuffer) {
+      const timer = setTimeout(() => {
+        performMix(rawVoiceBuffer);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [prodSettings.introMusic, prodSettings.outroMusic, prodSettings.playbackSpeed, prodSettings.introVolume, prodSettings.outroVolume, prodSettings.voiceVolume]);
+
+  const togglePlayback = () => {
+    if (!audioRef.current || !audioUrl) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleSave = () => {
+    onSave({
+      id: projectId.current,
+      title,
+      description: content.slice(0, 100) + '...',
+      content,
+      audioUrl: audioUrl || undefined,
+      createdAt: initialProject?.createdAt || Date.now(),
+      duration: rawVoiceBuffer?.duration,
+      voice,
+      tone,
+      productionSettings: prodSettings,
+      chapters,
+      metadata,
+      distributionStatus: distStatus,
+      platforms: selectedPlatforms
+    });
+    alert("Projek gestoor!");
+  };
+
+  const handlePublish = async () => {
+    if (!audioUrl) return alert("Please generate audio before publishing.");
+    if (selectedPlatforms.length === 0) return alert("Please select at least one platform.");
+    
+    setStatus('publishing');
+    
+    // Initialize granular status
+    const initialMap: Record<string, 'pending' | 'success' | 'error'> = {};
+    selectedPlatforms.forEach(p => initialMap[p] = 'pending');
+    setPlatformStatusMap(initialMap);
+
+    // Simulate publishing to each platform sequentially for effect
+    for (const platform of selectedPlatforms) {
+        await new Promise(r => setTimeout(r, 1500)); // Simulate API delay
+        setPlatformStatusMap(prev => ({ ...prev, [platform]: 'success' }));
+    }
+    
+    // Auto Generate Blog Post if enabled
+    if (autoGenBlog && content.trim()) {
+      try {
+         const blogData = await generateBlogContent(title, content, tone);
+         const newPost: BlogPost = {
+            id: `post_${Date.now()}`,
+            title: blogData.title,
+            excerpt: blogData.excerpt,
+            content: blogData.content,
+            author: metadata.author,
+            date: new Date().toLocaleDateString(),
+            createdAt: Date.now(),
+            tags: blogData.tags,
+            status: 'draft',
+            coverImage: metadata.coverArt,
+            linkedEpisodeId: projectId.current
+         };
+         onCreateBlogPost(newPost);
+         console.log("Blog post auto-generated");
+      } catch (error) {
+         console.error("Failed to auto-generate blog post", error);
+         alert("Warning: Podcast published, but blog generation failed.");
+      }
+    }
+    
+    await new Promise(r => setTimeout(r, 500));
+
+    setDistStatus(metadata.publishDate ? 'scheduled' : 'published');
+    setStatus('idle');
+    
+    handleSave(); // Save final state
+    
+    if (window.confirm("Publishing Successful! Would you like to download your RSS feed and distribution assets now?")) {
+        const fullProject = {
+          id: projectId.current,
+          title,
+          description: content.slice(0, 100) + '...',
+          content,
+          createdAt: initialProject?.createdAt || Date.now(),
+          duration: rawVoiceBuffer?.duration,
+          voice,
+          tone,
+          productionSettings: prodSettings,
+          chapters,
+          metadata,
+          distributionStatus: 'published',
+        } as PodcastProject;
+        
+        const rssXml = generateRSSFeed(fullProject, 5000000); // Mock size
+        downloadRSS(rssXml, 'feed.xml');
+    }
+  };
+
+  const togglePlatform = (id: string, isConnected: boolean) => {
+    if (!isConnected) {
+        alert("Please connect this platform in your Creator Settings first.");
+        return;
+    }
+    if (selectedPlatforms.includes(id)) {
+      setSelectedPlatforms(prev => prev.filter(p => p !== id));
+      setPlatformStatusMap(prev => { const n = {...prev}; delete n[id]; return n; });
+    } else {
+      setSelectedPlatforms(prev => [...prev, id]);
+      setPlatformStatusMap(prev => ({...prev, [id]: 'idle'}));
+    }
+  };
+
+  const insertChapter = () => {
+    const name = prompt("Chapter Name:");
+    if (name) {
+      setContent(prev => prev + `\n\n[Chapter: ${name}]\n`);
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setMetadata({ ...metadata, coverArt: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleGenerateImage = async () => {
+    if (!imagePrompt) return;
+    setIsGeneratingImage(true);
+    try {
+      const base64Image = await generateImage(imagePrompt);
+      setMetadata({ ...metadata, coverArt: base64Image });
+      setIsGeneratingImage(false);
+      setShowImageGen(false);
+    } catch (e) {
+      alert("Failed to generate image. Please check API key.");
+      setIsGeneratingImage(false);
+    }
+  };
+
+  // Define Platform Configs with Connection Logic
+  const PLATFORMS = [
+    { 
+        id: 'spotify', 
+        name: 'Spotify', 
+        color: 'border-green-600 bg-green-900/10', 
+        iconColor: 'bg-green-600 border-green-600',
+        isConnected: !!creatorProfile.links.spotify
+    },
+    { 
+        id: 'apple', 
+        name: 'Apple Podcasts', 
+        color: 'border-purple-600 bg-purple-900/10', 
+        iconColor: 'bg-purple-600 border-purple-600',
+        isConnected: !!creatorProfile.links.apple
+    },
+    { 
+        id: 'rss', 
+        name: 'Direct RSS Feed', 
+        color: 'border-orange-600 bg-orange-900/10', 
+        iconColor: 'bg-orange-600 border-orange-600',
+        isConnected: true // RSS is always available
+    }
+  ];
+
+  return (
+    <div className="h-[calc(100vh-8rem)] flex flex-col gap-6 relative">
+      
+      {/* SIDEBAR OVERLAY */}
+      {isProjectListOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-20 lg:hidden" 
+          onClick={() => setIsProjectListOpen(false)}
+        ></div>
+      )}
+
+      {/* SIDEBAR DRAWER (Dark) */}
+      <div 
+        className={`absolute top-0 bottom-0 left-0 z-30 w-80 bg-[#121212] border-r border-[#272727] shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${isProjectListOpen ? 'translate-x-0' : '-translate-x-full lg:hidden'}`}
+      >
+         {/* ... Sidebar content unchanged ... */}
+         <div className="p-4 border-b border-[#272727] flex items-center justify-between bg-[#181818]">
+           <h3 className="font-bold text-white">My Projects</h3>
+           <button onClick={() => setIsProjectListOpen(false)} className="lg:hidden p-1 rounded hover:bg-[#272727] text-slate-400">
+             <X className="w-5 h-5" />
+           </button>
+         </div>
+
+         {/* Search & Sort Controls */}
+         <div className="p-3 border-b border-[#272727] space-y-2 bg-[#181818]">
+            <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-500" />
+                <input 
+                  type="text" 
+                  placeholder="Search projects..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-[#1f1f1f] border border-[#333] text-sm rounded-lg pl-9 pr-2 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                />
+            </div>
+            <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+                <span className="flex items-center gap-1"><ArrowUpDown className="w-3 h-3" /> Sort by:</span>
+                <select 
+                  value={sortBy} 
+                  onChange={(e) => setSortBy(e.target.value as 'date' | 'title')}
+                  className="bg-transparent border-none text-slate-300 focus:ring-0 p-0 text-xs cursor-pointer"
+                >
+                    <option value="date">Date Created</option>
+                    <option value="title">Title (A-Z)</option>
+                </select>
+            </div>
+         </div>
+
+         <div className="p-3 flex-1 overflow-hidden flex flex-col">
+            <button 
+              onClick={() => { onSelectProject(null); setIsProjectListOpen(false); }}
+              className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium mb-4 flex-shrink-0"
+            >
+              <Plus className="w-4 h-4" /> New Project
+            </button>
+            <div className="space-y-2 overflow-y-auto custom-scrollbar flex-1 pb-4">
+              {filteredProjects.map(p => (
+                <div 
+                  key={p.id} 
+                  className={`group p-3 rounded-lg border transition-all ${projectId.current === p.id ? 'bg-[#1f1f1f] border-orange-600' : 'bg-[#121212] border-[#272727] hover:border-[#444]'}`}
+                >
+                   <div 
+                     className="cursor-pointer" 
+                     onClick={() => { onSelectProject(p); setIsProjectListOpen(false); }}
+                   >
+                     <div className="font-medium text-white text-sm truncate">{p.title}</div>
+                     <div className="text-xs text-slate-500 mt-2 flex items-center justify-between">
+                       <span>{new Date(p.createdAt).toLocaleDateString()}</span>
+                       <span className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border ${
+                         p.distributionStatus === 'published' 
+                           ? 'bg-green-900/20 text-green-400 border-green-800' 
+                           : p.distributionStatus === 'scheduled'
+                           ? 'bg-blue-900/20 text-blue-400 border-blue-800'
+                           : 'bg-slate-800 text-slate-400 border-slate-700'
+                       }`}>
+                          {p.distributionStatus === 'published' && <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>}
+                          {p.distributionStatus}
+                       </span>
+                     </div>
+                   </div>
+                   <div className="mt-3 pt-2 border-t border-[#272727] flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); onDuplicateProject(p); }}
+                        className="p-1 text-slate-400 hover:text-blue-400 hover:bg-blue-900/20 rounded" 
+                        title="Duplicate"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); onDeleteProject(p.id); }}
+                        className="p-1 text-slate-400 hover:text-red-400 hover:bg-red-900/20 rounded" 
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                   </div>
+                </div>
+              ))}
+              {filteredProjects.length === 0 && (
+                <div className="text-center py-8 text-slate-500 text-sm">
+                  {projects.length === 0 ? "No projects yet." : "No projects match your search."}
+                </div>
+              )}
+            </div>
+         </div>
+      </div>
+
+      {/* Top Bar */}
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-[#181818] p-4 rounded-xl border border-[#272727]">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setIsProjectListOpen(!isProjectListOpen)}
+            className="text-slate-400 border border-[#333]"
+          >
+            <FolderOpen className="w-5 h-5" />
+          </Button>
+          <div className="flex-1">
+            <input 
+              type="text" 
+              value={title} 
+              onChange={(e) => setTitle(e.target.value)}
+              className="bg-transparent border-none font-bold text-xl text-white focus:ring-0 w-full placeholder-slate-600"
+              placeholder="Episode Title..."
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 bg-[#0f0f0f] p-1 rounded-lg overflow-x-auto border border-[#272727]">
+          <button
+            onClick={() => setActiveTab('script')}
+            className={`px-3 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'script' ? 'bg-[#222] text-orange-500 shadow-sm' : 'text-slate-500 hover:text-white'}`}
+          >
+            <Mic2 className="w-4 h-4" /> Script
+          </button>
+          <button
+            onClick={() => setActiveTab('production')}
+            className={`px-3 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'production' ? 'bg-[#222] text-orange-500 shadow-sm' : 'text-slate-500 hover:text-white'}`}
+          >
+            <Sliders className="w-4 h-4" /> Production
+          </button>
+           <button
+            onClick={() => setActiveTab('distribution')}
+            className={`px-3 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'distribution' ? 'bg-[#222] text-orange-500 shadow-sm' : 'text-slate-500 hover:text-white'}`}
+          >
+            <Share2 className="w-4 h-4" /> Publish
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+           <Button variant="secondary" onClick={handleSave}>
+            <Save className="w-4 h-4 mr-2" />
+            Save
+          </Button>
+          {activeTab !== 'distribution' && (
+             <Button variant="primary" onClick={() => setActiveTab(activeTab === 'script' ? 'production' : 'distribution')}>
+                Next <Play className="w-3 h-3 ml-2" />
+             </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex-1 flex flex-col lg:flex-row gap-6 overflow-hidden">
+        
+        {/* MAIN COLUMN */}
+        <div className="flex-1 flex flex-col bg-[#181818] rounded-xl border border-[#272727] overflow-hidden">
+          
+          {activeTab === 'script' && (
+            <>
+              <div className="border-b border-[#272727] flex flex-col bg-[#1f1f1f] transition-all duration-300">
+                 <div className="p-3 flex items-center justify-between gap-2">
+                   <div className="flex items-center gap-2 flex-wrap">
+                      <select 
+                        value={tone}
+                        onChange={(e) => setTone(e.target.value as any)}
+                        className="text-sm bg-[#121212] text-slate-200 border-[#333] rounded-md py-1.5 focus:border-orange-500 focus:ring-orange-500"
+                      >
+                        <option value="conversational">Conversational</option>
+                        <option value="formal">Formal / News</option>
+                        <option value="storytelling">Storytelling</option>
+                      </select>
+                      <select 
+                        value={voice}
+                        onChange={(e) => setVoice(e.target.value)}
+                        className="text-sm bg-[#121212] text-slate-200 border-[#333] rounded-md py-1.5 focus:border-orange-500 focus:ring-orange-500"
+                      >
+                        <option value="Fenrir">Fenrir (M)</option>
+                        <option value="Kore">Kore (F)</option>
+                        <option value="Puck">Puck (M)</option>
+                        <option value="Zephyr">Zephyr (F)</option>
+                      </select>
+                   </div>
+                   <div className="flex items-center gap-2">
+                      <Button size="sm" variant="ghost" onClick={insertChapter} title="Insert Chapter Marker">
+                         <Flag className="w-4 h-4 mr-1" /> Chapter
+                      </Button>
+                      <button 
+                        onClick={() => setShowAiOptions(!showAiOptions)}
+                        className={`text-sm font-medium px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors ${showAiOptions ? 'bg-purple-900/30 text-purple-300 border border-purple-800' : 'text-slate-400 hover:bg-[#2a2a2a]'}`}
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        AI Tools
+                        {showAiOptions ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </button>
+                   </div>
+                 </div>
+
+                 {/* Collapsible AI Options Panel */}
+                 {showAiOptions && (
+                    <div className="p-4 bg-purple-900/10 border-t border-[#333] grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
+                       <div className="space-y-2">
+                          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Target Length</label>
+                          <div className="flex gap-2">
+                            {(['short', 'medium', 'long'] as const).map(l => (
+                              <button
+                                key={l}
+                                onClick={() => setScriptLength(l)}
+                                className={`flex-1 py-1.5 px-3 rounded text-sm capitalize border ${scriptLength === l ? 'bg-[#2a2a2a] border-purple-500 text-purple-300 shadow-sm' : 'bg-transparent border-[#333] text-slate-400 hover:border-slate-500'}`}
+                              >
+                                {l}
+                              </button>
+                            ))}
+                          </div>
+                       </div>
+                       <div className="space-y-2">
+                          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Focus Topics</label>
+                          <input 
+                            type="text"
+                            value={scriptTopics}
+                            onChange={(e) => setScriptTopics(e.target.value)}
+                            placeholder="e.g. rugby, weather, politics..."
+                            className="w-full text-sm bg-[#121212] text-white rounded-md border-[#333] focus:border-purple-500 focus:ring-purple-500"
+                          />
+                       </div>
+                       <div className="md:col-span-2 flex justify-end">
+                         <Button 
+                            size="sm" 
+                            onClick={handleGenerateScript}
+                            isLoading={status === 'generating_script'}
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                          >
+                            <Wand2 className="w-4 h-4 mr-2" />
+                            Generate / Polish Script
+                          </Button>
+                       </div>
+                    </div>
+                 )}
+              </div>
+              <textarea
+                className="flex-1 w-full p-6 resize-none focus:outline-none bg-[#181818] text-slate-200 leading-relaxed text-lg font-serif"
+                placeholder="Write your podcast script here in Afrikaans, or paste an article..."
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+              />
+            </>
+          )}
+
+          {activeTab === 'production' && (
+             <div className="p-8 space-y-8 overflow-y-auto">
+                {/* ... Production content unchanged ... */}
+                <div>
+                   <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                     <Music className="w-5 h-5 text-orange-600" /> Audio Mixing
+                   </h3>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <label className="text-sm font-medium text-slate-400">Intro Music</label>
+                        <div className="grid grid-cols-2 gap-2">
+                           {['none', 'news', 'story', 'upbeat'].map(t => (
+                             <button
+                               key={t}
+                               onClick={() => setProdSettings(s => ({...s, introMusic: t as any}))}
+                               className={`px-3 py-2 text-sm rounded border capitalize ${prodSettings.introMusic === t ? 'bg-[#1f1f1f] border-orange-500 text-orange-500' : 'bg-[#121212] border-[#333] text-slate-400'}`}
+                             >
+                               {t}
+                             </button>
+                           ))}
+                        </div>
+                        {prodSettings.introMusic !== 'none' && (
+                          <div className="mt-2">
+                             <label className="text-xs font-medium text-slate-500 flex justify-between mb-1">
+                                Intro Volume <span>{Math.round((prodSettings.introVolume || 0.5) * 100)}%</span>
+                             </label>
+                             <input 
+                               type="range" 
+                               min="0.1" 
+                               max="1.0" 
+                               step="0.1"
+                               value={prodSettings.introVolume || 0.5}
+                               onChange={(e) => setProdSettings(s => ({...s, introVolume: parseFloat(e.target.value)}))}
+                               className="w-full accent-orange-600 bg-[#333] rounded-lg appearance-none h-1.5 cursor-pointer"
+                             />
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-3">
+                        <label className="text-sm font-medium text-slate-400">Outro Music</label>
+                        <div className="grid grid-cols-2 gap-2">
+                           {['none', 'news', 'story', 'upbeat'].map(t => (
+                             <button
+                               key={t}
+                               onClick={() => setProdSettings(s => ({...s, outroMusic: t as any}))}
+                               className={`px-3 py-2 text-sm rounded border capitalize ${prodSettings.outroMusic === t ? 'bg-[#1f1f1f] border-orange-500 text-orange-500' : 'bg-[#121212] border-[#333] text-slate-400'}`}
+                             >
+                               {t}
+                             </button>
+                           ))}
+                        </div>
+                        {prodSettings.outroMusic !== 'none' && (
+                          <div className="mt-2">
+                             <label className="text-xs font-medium text-slate-500 flex justify-between mb-1">
+                                Outro Volume <span>{Math.round((prodSettings.outroVolume || 0.5) * 100)}%</span>
+                             </label>
+                             <input 
+                               type="range" 
+                               min="0.1" 
+                               max="1.0" 
+                               step="0.1"
+                               value={prodSettings.outroVolume || 0.5}
+                               onChange={(e) => setProdSettings(s => ({...s, outroVolume: parseFloat(e.target.value)}))}
+                               className="w-full accent-orange-600 bg-[#333] rounded-lg appearance-none h-1.5 cursor-pointer"
+                             />
+                          </div>
+                        )}
+                      </div>
+                   </div>
+                   
+                   <div className="mt-6">
+                      <div className="max-w-md">
+                        <label className="text-sm font-medium text-slate-400 flex justify-between">
+                           Voice Volume
+                           <span>{Math.round((prodSettings.voiceVolume ?? 1.0) * 100)}%</span>
+                        </label>
+                        <input 
+                           type="range" 
+                           min="0.5" 
+                           max="2.0" 
+                           step="0.1"
+                           value={prodSettings.voiceVolume ?? 1.0}
+                           onChange={(e) => setProdSettings(s => ({...s, voiceVolume: parseFloat(e.target.value)}))}
+                           className="w-full mt-2 accent-orange-600 bg-[#333] rounded-lg appearance-none h-2 cursor-pointer"
+                        />
+                      </div>
+                   </div>
+                </div>
+
+                <div className="border-t border-[#272727] pt-8">
+                   <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                     <Sliders className="w-5 h-5 text-orange-600" /> Playback Control
+                   </h3>
+                   <div className="max-w-md space-y-6">
+                      <div className="space-y-2">
+                         <div className="flex justify-between">
+                            <label className="text-sm font-medium text-slate-400">Speed ({prodSettings.playbackSpeed}x)</label>
+                         </div>
+                         <input 
+                           type="range" 
+                           min="0.5" 
+                           max="1.5" 
+                           step="0.1"
+                           value={prodSettings.playbackSpeed}
+                           onChange={(e) => setProdSettings(s => ({...s, playbackSpeed: parseFloat(e.target.value)}))}
+                           className="w-full accent-orange-600 bg-[#333] rounded-lg appearance-none h-2 cursor-pointer"
+                         />
+                         <p className="text-xs text-slate-500">Note: Changing speed requires re-rendering the mix.</p>
+                      </div>
+                   </div>
+                </div>
+
+                {status === 'mixing' && (
+                  <div className="text-center py-8 text-orange-500 animate-pulse">
+                     Rendering Audio Mix...
+                  </div>
+                )}
+             </div>
+          )}
+
+          {activeTab === 'distribution' && (
+             <div className="p-8 space-y-8 overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                   {/* Left Col: Metadata */}
+                   <div className="space-y-6">
+                      
+                      {/* Cover Art Section */}
+                      <div className="space-y-4 mb-6">
+                        <label className="block text-sm font-medium text-slate-400">Episode Cover Art</label>
+                        <div className="flex items-start gap-4">
+                          <div className="w-32 h-32 bg-[#121212] rounded-lg border border-[#333] flex items-center justify-center overflow-hidden relative group">
+                             {metadata.coverArt ? (
+                               <img src={metadata.coverArt} className="w-full h-full object-cover" alt="Cover Art" />
+                             ) : (
+                               <ImageIcon className="text-slate-600 w-8 h-8" />
+                             )}
+                          </div>
+                          <div className="space-y-2">
+                             <div className="flex gap-2 flex-wrap">
+                               <Button variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>
+                                 <Upload className="w-4 h-4 mr-2" /> Upload
+                               </Button>
+                               <Button variant="secondary" size="sm" onClick={() => { setShowImageGen(!showImageGen); setImagePrompt(title + ' podcast cover art'); }}>
+                                 <Sparkles className="w-4 h-4 mr-2" /> Generate AI
+                               </Button>
+                             </div>
+                             <p className="text-xs text-slate-500">Supported: JPG, PNG. Recommended: Square (1:1).</p>
+                             <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                          </div>
+                        </div>
+                        
+                        {showImageGen && (
+                          <div className="p-3 bg-purple-900/10 rounded-lg border border-purple-800 animate-in fade-in slide-in-from-top-1">
+                             <label className="block text-xs font-semibold text-purple-300 mb-1">AI Image Prompt</label>
+                             <div className="flex gap-2">
+                               <input 
+                                 value={imagePrompt} 
+                                 onChange={e => setImagePrompt(e.target.value)}
+                                 className="flex-1 text-sm bg-[#121212] text-white border-purple-800 rounded-md focus:border-purple-500 focus:ring-purple-500" 
+                               />
+                               <Button size="sm" onClick={handleGenerateImage} isLoading={isGeneratingImage} className="bg-purple-600 hover:bg-purple-700 text-white">
+                                 Create
+                               </Button>
+                             </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <h3 className="text-lg font-semibold text-white flex items-center gap-2 border-t border-[#333] pt-6">
+                        <Rss className="w-5 h-5 text-orange-600" /> Episode Metadata
+                      </h3>
+                      
+                      <div className="space-y-4">
+                         <div>
+                            <label className="block text-sm font-medium text-slate-400">Author / Host</label>
+                            <input 
+                              type="text" 
+                              value={metadata.author}
+                              onChange={e => setMetadata({...metadata, author: e.target.value})}
+                              className="mt-1 w-full bg-[#121212] text-white rounded-md border-[#333] shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                            />
+                         </div>
+                         
+                         <div className="grid grid-cols-2 gap-4">
+                            <div>
+                               <label className="block text-sm font-medium text-slate-400">Season</label>
+                               <input 
+                                  type="number" 
+                                  value={metadata.season}
+                                  onChange={e => setMetadata({...metadata, season: parseInt(e.target.value)})}
+                                  className="mt-1 w-full bg-[#121212] text-white rounded-md border-[#333] shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                               />
+                            </div>
+                            <div>
+                               <label className="block text-sm font-medium text-slate-400">Episode</label>
+                               <input 
+                                  type="number" 
+                                  value={metadata.episode}
+                                  onChange={e => setMetadata({...metadata, episode: parseInt(e.target.value)})}
+                                  className="mt-1 w-full bg-[#121212] text-white rounded-md border-[#333] shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                               />
+                            </div>
+                         </div>
+
+                         <div>
+                            <label className="block text-sm font-medium text-slate-400">Episode Type</label>
+                            <select
+                               value={metadata.type}
+                               onChange={e => setMetadata({...metadata, type: e.target.value as any})}
+                               className="mt-1 w-full bg-[#121212] text-white rounded-md border-[#333] shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                            >
+                               <option value="full">Full Episode</option>
+                               <option value="trailer">Trailer</option>
+                               <option value="bonus">Bonus</option>
+                            </select>
+                         </div>
+                         
+                         <div className="flex items-center gap-2 pt-2">
+                            <input 
+                               type="checkbox" 
+                               id="explicit"
+                               checked={metadata.explicit}
+                               onChange={e => setMetadata({...metadata, explicit: e.target.checked})}
+                               className="rounded border-[#333] bg-[#121212] text-orange-600 focus:ring-orange-500"
+                            />
+                            <label htmlFor="explicit" className="text-sm text-slate-400">Contains Explicit Content</label>
+                         </div>
+                      </div>
+                   </div>
+
+                   {/* Right Col: Distribution & Scheduling */}
+                   <div className="space-y-6">
+                      <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                        <Globe className="w-5 h-5 text-orange-600" /> Distribution Channels
+                      </h3>
+
+                      <div className="space-y-3">
+                         {PLATFORMS.map(platform => {
+                            const isSelected = selectedPlatforms.includes(platform.id);
+                            const pStatus = platformStatusMap[platform.id] || 'idle';
+                            
+                            return (
+                             <div 
+                               key={platform.id}
+                               onClick={() => togglePlatform(platform.id, platform.isConnected)}
+                               className={`p-4 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${isSelected ? platform.color : 'border-[#333] hover:bg-[#1f1f1f] bg-[#121212]'}`}
+                             >
+                                <div className="flex items-center gap-4">
+                                   <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${isSelected ? platform.iconColor : 'border-slate-500'}`}>
+                                      {isSelected && <CheckCircle className="w-3.5 h-3.5 text-white" />}
+                                   </div>
+                                   <div>
+                                      <div className="font-medium text-white text-sm">{platform.name}</div>
+                                      <div className="flex items-center gap-1.5 mt-0.5">
+                                         {platform.isConnected ? (
+                                           <span className="text-[10px] text-green-400 flex items-center gap-1"><Link className="w-3 h-3" /> Connected</span>
+                                         ) : (
+                                           <span className="text-[10px] text-slate-500 flex items-center gap-1"><Link className="w-3 h-3" /> Not Configured</span>
+                                         )}
+                                      </div>
+                                   </div>
+                                </div>
+                                
+                                {/* Status Indicator */}
+                                {isSelected && (
+                                   <div className="flex items-center">
+                                      {pStatus === 'pending' && <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />}
+                                      {pStatus === 'success' && <CheckCircle className="w-5 h-5 text-green-500" />}
+                                      {pStatus === 'error' && <XCircle className="w-5 h-5 text-red-500" />}
+                                   </div>
+                                )}
+                             </div>
+                            );
+                         })}
+                      </div>
+
+                      <div className="pt-4 border-t border-[#333]">
+                         <h4 className="text-sm font-medium text-slate-400 mb-2">Schedule Publishing</h4>
+                         <div className="flex gap-2">
+                             <input 
+                               type="datetime-local" 
+                               value={metadata.publishDate}
+                               onChange={e => setMetadata({...metadata, publishDate: e.target.value})}
+                               className="w-full text-sm bg-[#121212] text-white rounded-md border-[#333] focus:border-orange-500 focus:ring-orange-500"
+                             />
+                         </div>
+                         <p className="text-xs text-slate-500 mt-2">
+                            {metadata.publishDate ? 'Episode will be released automatically at this time.' : 'Episode will be published immediately.'}
+                         </p>
+                      </div>
+
+                      <div className="pt-4 border-t border-[#333]">
+                          <div className="flex items-center justify-between">
+                            <div>
+                                <h4 className="text-sm font-medium text-slate-400">Content Repurposing</h4>
+                                <p className="text-xs text-slate-500">Automatically create a blog post draft from script.</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <label className="flex items-center cursor-pointer">
+                                    <input 
+                                        type="checkbox"
+                                        checked={autoGenBlog}
+                                        onChange={(e) => setAutoGenBlog(e.target.checked)}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-11 h-6 bg-[#333] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600 relative"></div>
+                                </label>
+                            </div>
+                          </div>
+                      </div>
+                   </div>
+                </div>
+
+                {/* Publish Action Area */}
+                <div className="mt-8 pt-8 border-t border-[#333] flex flex-col items-center justify-center text-center">
+                   {distStatus === 'published' ? (
+                      <div className="bg-green-900/20 border border-green-800 rounded-xl p-6 w-full max-w-lg">
+                         <div className="mx-auto w-12 h-12 bg-green-800/50 text-green-400 rounded-full flex items-center justify-center mb-3">
+                            <CheckCircle className="w-6 h-6" />
+                         </div>
+                         <h3 className="text-xl font-bold text-green-400">Published Successfully!</h3>
+                         <p className="text-green-300 mt-1 mb-4">Your episode is now live on selected platforms.</p>
+                         <Button variant="secondary" onClick={() => setDistStatus('draft')}>Publish Update</Button>
+                      </div>
+                   ) : distStatus === 'scheduled' ? (
+                       <div className="bg-blue-900/20 border border-blue-800 rounded-xl p-6 w-full max-w-lg">
+                         <div className="mx-auto w-12 h-12 bg-blue-800/50 text-blue-400 rounded-full flex items-center justify-center mb-3">
+                            <Calendar className="w-6 h-6" />
+                         </div>
+                         <h3 className="text-xl font-bold text-blue-400">Scheduled for Release</h3>
+                         <p className="text-blue-300 mt-1 mb-4">Scheduled for: {new Date(metadata.publishDate || '').toLocaleString()}</p>
+                         <Button variant="secondary" onClick={() => setDistStatus('draft')}>Cancel Schedule</Button>
+                      </div>
+                   ) : (
+                     <div className="w-full max-w-lg space-y-4">
+                        {!audioUrl && (
+                           <div className="flex items-center gap-2 text-amber-500 bg-amber-900/20 p-3 rounded-lg text-sm mb-2 border border-amber-800">
+                              <AlertCircle className="w-4 h-4" />
+                              Audio must be generated before publishing.
+                           </div>
+                        )}
+                        <Button 
+                           size="lg" 
+                           className="w-full text-lg py-4 shadow-lg shadow-orange-900/10"
+                           disabled={!audioUrl || selectedPlatforms.length === 0}
+                           isLoading={status === 'publishing'}
+                           onClick={handlePublish}
+                        >
+                           {status === 'publishing' ? 'Distributing to Platforms...' : 'Publish Episode Now'}
+                        </Button>
+                        <p className="text-xs text-slate-500">
+                           By publishing, you confirm that you own all rights to the content.
+                        </p>
+                     </div>
+                   )}
+                </div>
+             </div>
+          )}
+        </div>
+
+        {/* RIGHT COLUMN: PREVIEW & EXPORT */}
+        <div className="lg:w-80 flex flex-col gap-6">
+           {/* ... Output content unchanged ... */}
+           <div className="bg-[#181818] rounded-xl border border-[#272727] p-6 flex flex-col h-full">
+              <h3 className="font-semibold text-white mb-6">Final Output</h3>
+              
+              <div className="flex-1 bg-black rounded-xl p-6 relative flex flex-col items-center justify-center text-center text-white mb-6 overflow-hidden border border-[#333]">
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a1a] to-black"></div>
+                  <div className="absolute bottom-0 left-0 right-0 h-16 flex items-end justify-center gap-1 opacity-20 px-4">
+                     {[...Array(12)].map((_, i) => (
+                       <div key={i} className={`w-full bg-orange-500 rounded-t-sm transition-all duration-300 ${isPlaying ? 'animate-pulse' : ''}`} style={{ height: `${Math.random() * 80 + 20}%` }}></div>
+                     ))}
+                  </div>
+
+                  <div className="z-10 relative">
+                    {audioUrl ? (
+                      <>
+                        <button 
+                          onClick={togglePlayback}
+                          className="w-16 h-16 bg-orange-600 hover:bg-orange-500 rounded-full flex items-center justify-center mb-4 transition-transform hover:scale-105 shadow-xl shadow-orange-900/20"
+                        >
+                          {isPlaying ? <Pause className="w-8 h-8 fill-current" /> : <Play className="w-8 h-8 fill-current ml-1" />}
+                        </button>
+                        <div className="text-sm font-medium text-slate-300">
+                          {Math.floor((audioRef.current?.duration || 0) / 60)}:
+                          {Math.floor((audioRef.current?.duration || 0) % 60).toString().padStart(2, '0')}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-slate-600 text-sm">
+                        No audio generated yet
+                      </div>
+                    )}
+                  </div>
+                  
+                  <audio 
+                    ref={audioRef} 
+                    src={audioUrl || undefined} 
+                    onEnded={() => setIsPlaying(false)}
+                    onTimeUpdate={() => { /* Force re-render for time if needed */ }}
+                  />
+              </div>
+
+              <div className="space-y-3">
+                 {!rawVoiceBuffer ? (
+                   <Button 
+                     className="w-full" 
+                     onClick={handleSynthesize} 
+                     isLoading={status === 'synthesizing_audio'}
+                     disabled={!content.trim()}
+                   >
+                     <RefreshCw className="w-4 h-4 mr-2" />
+                     Generate Audio
+                   </Button>
+                 ) : (
+                   <Button 
+                      className="w-full" 
+                      onClick={handleSynthesize} 
+                      variant="secondary"
+                      isLoading={status === 'synthesizing_audio'}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Re-Generate Voice
+                    </Button>
+                 )}
+
+                 <a 
+                   href={audioUrl || '#'} 
+                   download={`${title.replace(/\s+/g, '_')}.wav`}
+                   className={`flex items-center justify-center w-full px-4 py-2 rounded-lg font-medium transition-colors ${!audioUrl ? 'bg-[#222] text-slate-600 cursor-not-allowed' : 'bg-white text-black hover:bg-slate-200'}`}
+                   onClick={(e) => !audioUrl && e.preventDefault()}
+                 >
+                   <Download className="w-4 h-4 mr-2" />
+                   Export WAV
+                 </a>
+                 <p className="text-xs text-center text-slate-500">High Quality 24kHz WAV</p>
+              </div>
+           </div>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+export default Studio;

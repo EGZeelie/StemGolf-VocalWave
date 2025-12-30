@@ -1,0 +1,199 @@
+import { GoogleGenAI, Modality } from "@google/genai";
+import { decodeBase64Audio, audioBufferToWav } from "./audioUtils";
+
+const API_KEY = process.env.API_KEY || ''; // Ensure this is set in your environment
+const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+// Models
+const TEXT_MODEL = 'gemini-3-flash-preview';
+const TTS_MODEL = 'gemini-2.5-flash-preview-tts';
+const IMAGE_MODEL = 'gemini-2.5-flash-image';
+
+/**
+ * Improves or generates Afrikaans script based on input.
+ */
+export const generateAfrikaansScript = async (
+  prompt: string, 
+  tone: 'formal' | 'conversational' | 'storytelling',
+  length: 'short' | 'medium' | 'long' = 'medium',
+  topics: string = ''
+): Promise<string> => {
+  if (!API_KEY) throw new Error("API Key missing");
+
+  const toneInstruction = tone === 'formal' 
+    ? 'Use formal, academic or news-broadcast standard Afrikaans.' 
+    : tone === 'storytelling'
+    ? 'Use expressive, descriptive Afrikaans suitable for a podcast story.'
+    : 'Use casual, conversational Afrikaans suitable for a friendly radio host.';
+
+  const lengthInstruction = length === 'short' 
+    ? 'Keep the output concise (approx. 2-3 minutes speaking time).'
+    : length === 'long'
+    ? 'Create a detailed, in-depth script (approx. 10+ minutes speaking time).'
+    : 'Aim for a standard podcast segment length (approx. 5 minutes speaking time).';
+
+  const topicInstruction = topics 
+    ? `Ensure the script specifically covers the following key topics: ${topics}.`
+    : '';
+
+  const systemInstruction = `You are an expert Afrikaans scriptwriter for podcasts and radio. 
+  Your goal is to take user input (which might be rough notes, English text, or an article) 
+  and convert it into a natural-sounding Afrikaans script. 
+  
+  Style Guidelines:
+  - ${toneInstruction}
+  - ${lengthInstruction}
+  - Ensure correct grammar, idiom usage, and sentence structure for oral delivery.
+  
+  Content Requirements:
+  - ${topicInstruction}
+  
+  Formatting:
+  - You may insert [Pause] markers where appropriate for dramatic effect.
+  - Do not use markdown formatting like bold or italics.
+  - Return ONLY the script text.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: TEXT_MODEL,
+      contents: prompt,
+      config: {
+        systemInstruction: systemInstruction,
+        temperature: 0.7,
+      },
+    });
+    return response.text || "Kon nie teks genereer nie.";
+  } catch (error) {
+    console.error("Script generation error:", error);
+    throw error;
+  }
+};
+
+/**
+ * Generates an Afrikaans Blog Post based on a topic or transcript.
+ */
+export const generateBlogContent = async (
+  topic: string,
+  context: string = '', // e.g., a podcast transcript or rough notes
+  tone: string = 'professional'
+): Promise<{ title: string; content: string; excerpt: string; tags: string[] }> => {
+  if (!API_KEY) throw new Error("API Key missing");
+
+  const systemInstruction = `You are a professional Afrikaans content creator and blogger.
+  Your task is to write a compelling blog post in Afrikaans.
+  
+  Output Format: JSON
+  The response must be a valid JSON object with the following keys:
+  - "title": A catchy Afrikaans title.
+  - "content": The body of the blog post in HTML format (use <h2>, <p>, <ul>, <li>, <strong>).
+  - "excerpt": A short summary (1-2 sentences) in Afrikaans.
+  - "tags": An array of 3-5 relevant tags (in Afrikaans or English).
+  
+  Tone: ${tone}
+  Language: Afrikaans (High quality, natural phrasing).
+  `;
+
+  const userPrompt = `Topic: ${topic}\n\nAdditional Context/Notes:\n${context}`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: TEXT_MODEL,
+      contents: userPrompt,
+      config: {
+        systemInstruction: systemInstruction,
+        responseMimeType: "application/json",
+      },
+    });
+
+    const jsonText = response.text;
+    if (!jsonText) throw new Error("No text generated");
+
+    return JSON.parse(jsonText);
+  } catch (error) {
+    console.error("Blog generation error:", error);
+    throw error;
+  }
+};
+
+/**
+ * Synthesizes speech from text using Gemini TTS.
+ */
+export const synthesizeSpeech = async (
+  text: string, 
+  voiceName: string = 'Kore'
+): Promise<{ audioUrl: string; duration: number; buffer: AudioBuffer }> => {
+  if (!API_KEY) throw new Error("API Key missing");
+
+  // Remove [Pause] markers or similar for TTS if model doesn't support them natively as silence.
+  // Gemini TTS usually handles punctuation well. Let's strip explicit bracket markers to avoid it reading "Bracket Pause Bracket".
+  const cleanText = text.replace(/\[.*?\]/g, ' ... '); 
+
+  try {
+    const response = await ai.models.generateContent({
+      model: TTS_MODEL,
+      contents: [{ parts: [{ text: cleanText }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: voiceName },
+          },
+        },
+      },
+    });
+
+    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    
+    if (!base64Audio) {
+      throw new Error("No audio data received from Gemini");
+    }
+
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+    const audioBuffer = await decodeBase64Audio(base64Audio, audioContext);
+    const wavBlob = audioBufferToWav(audioBuffer);
+    const audioUrl = URL.createObjectURL(wavBlob);
+
+    return {
+      audioUrl,
+      duration: audioBuffer.duration,
+      buffer: audioBuffer
+    };
+
+  } catch (error) {
+    console.error("TTS error:", error);
+    throw error;
+  }
+};
+
+/**
+ * Generates an image for podcast cover art using Gemini Flash Image.
+ */
+export const generateImage = async (prompt: string): Promise<string> => {
+  if (!API_KEY) throw new Error("API Key missing");
+
+  try {
+    const response = await ai.models.generateContent({
+      model: IMAGE_MODEL,
+      contents: {
+        parts: [{ text: prompt }]
+      },
+      config: {
+        imageConfig: {
+            aspectRatio: "1:1"
+        }
+      }
+    });
+
+    // Find the part containing the image data
+    const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+    
+    if (part && part.inlineData) {
+        return `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+    }
+    
+    throw new Error("No image generated or invalid response format");
+  } catch (error) {
+    console.error("Image generation error:", error);
+    throw error;
+  }
+};
