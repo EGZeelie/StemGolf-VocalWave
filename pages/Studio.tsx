@@ -35,9 +35,14 @@ const Studio: React.FC<StudioProps> = ({
   const [isProjectListOpen, setIsProjectListOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
+  
+  // Series Creation State
   const [isCreatingSeries, setIsCreatingSeries] = useState(false);
   const [newSeriesTitle, setNewSeriesTitle] = useState('');
   const [newSeriesDesc, setNewSeriesDesc] = useState('');
+  const [newSeriesCover, setNewSeriesCover] = useState('');
+  const seriesCoverInputRef = useRef<HTMLInputElement>(null);
+  const [isGeneratingSeriesCover, setIsGeneratingSeriesCover] = useState(false);
 
   // Project State
   const [title, setTitle] = useState(initialProject?.title || 'Nuwe Episode');
@@ -279,12 +284,37 @@ const Studio: React.FC<StudioProps> = ({
     alert("Projek gestoor!");
   };
 
+  const handleSeriesCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewSeriesCover(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleGenerateSeriesCover = async () => {
+      if (!newSeriesTitle) return alert("Please enter a series title first.");
+      setIsGeneratingSeriesCover(true);
+      try {
+          const img = await generateImage(`${newSeriesTitle} podcast cover art, minimal, professional`, "1:1");
+          setNewSeriesCover(img);
+      } catch (e) {
+          alert("Generation failed. Check API key.");
+      } finally {
+          setIsGeneratingSeriesCover(false);
+      }
+  };
+
   const handleSaveNewSeries = () => {
     if(!newSeriesTitle.trim()) return;
     const newSeries: Series = {
       id: `series_${Date.now()}`,
       title: newSeriesTitle,
       description: newSeriesDesc,
+      coverImage: newSeriesCover || undefined,
       createdAt: Date.now()
     };
     onCreateSeries(newSeries);
@@ -292,6 +322,7 @@ const Studio: React.FC<StudioProps> = ({
     setIsCreatingSeries(false);
     setNewSeriesTitle('');
     setNewSeriesDesc('');
+    setNewSeriesCover('');
   };
 
   const handlePublish = async () => {
@@ -934,7 +965,30 @@ const Studio: React.FC<StudioProps> = ({
                           <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
                             <ListMusic className="w-4 h-4" /> New Series
                           </h4>
-                          <div className="space-y-3">
+                          <div className="space-y-4">
+                            {/* Cover Image Input */}
+                            <div className="flex items-start gap-4">
+                                <div className="w-20 h-20 bg-[#121212] rounded-lg border border-[#333] flex-shrink-0 flex items-center justify-center overflow-hidden">
+                                     {newSeriesCover ? (
+                                         <img src={newSeriesCover} className="w-full h-full object-cover" />
+                                     ) : (
+                                         <ImageIcon className="w-8 h-8 text-slate-700" />
+                                     )}
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="block text-xs text-slate-400">Series Cover (Optional)</label>
+                                    <div className="flex gap-2">
+                                        <Button size="sm" variant="secondary" onClick={() => seriesCoverInputRef.current?.click()}>
+                                            <Upload className="w-3 h-3 mr-1" /> Upload
+                                        </Button>
+                                        <Button size="sm" variant="secondary" onClick={handleGenerateSeriesCover} isLoading={isGeneratingSeriesCover} disabled={!newSeriesTitle}>
+                                            <Sparkles className="w-3 h-3 mr-1" /> AI Gen
+                                        </Button>
+                                        <input ref={seriesCoverInputRef} type="file" className="hidden" accept="image/*" onChange={handleSeriesCoverUpload} />
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <div>
                               <label className="block text-xs text-slate-400 mb-1">Series Title</label>
                               <input 

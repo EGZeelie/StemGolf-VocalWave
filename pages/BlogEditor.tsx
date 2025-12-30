@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { BlogPost, CreatorProfile, PodcastProject } from '../types';
 import Button from '../components/Button';
-import { FileText, Plus, Sparkles, Image as ImageIcon, X, Save, ArrowLeft, Wand2, Calendar, Tag, Trash2, ExternalLink, Link as LinkIcon, Mic, RefreshCw } from 'lucide-react';
+import { FileText, Plus, Sparkles, Image as ImageIcon, X, Save, ArrowLeft, Wand2, Calendar, Tag, Trash2, ExternalLink, Link as LinkIcon, Mic, RefreshCw, Layers } from 'lucide-react';
 import { generateBlogContent, generateImage } from '../services/gemini';
 
 interface BlogEditorProps {
@@ -17,6 +17,8 @@ const BlogEditor: React.FC<BlogEditorProps> = ({ posts, profile, projects, onSav
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   
   // AI State
+  const [aiSource, setAiSource] = useState<'custom' | 'episode'>('custom');
+  const [selectedEpisodeId, setSelectedEpisodeId] = useState('');
   const [aiTopic, setAiTopic] = useState('');
   const [aiContext, setAiContext] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -30,7 +32,7 @@ const BlogEditor: React.FC<BlogEditorProps> = ({ posts, profile, projects, onSav
   const [tagInput, setTagInput] = useState('');
   const [linkedEpisodeId, setLinkedEpisodeId] = useState<string>('');
 
-  const handleCreateNew = () => {
+  const handleCreateNew = (openAi: boolean = false) => {
     const newPost: BlogPost = {
       id: `post_${Date.now()}`,
       title: 'New Article',
@@ -44,6 +46,12 @@ const BlogEditor: React.FC<BlogEditorProps> = ({ posts, profile, projects, onSav
     };
     setEditingPost(newPost);
     syncState(newPost);
+    if (openAi) {
+      setAiSource('custom');
+      setAiTopic('');
+      setAiContext('');
+      setIsAiModalOpen(true);
+    }
   };
 
   const syncState = (post: BlogPost) => {
@@ -76,10 +84,27 @@ const BlogEditor: React.FC<BlogEditorProps> = ({ posts, profile, projects, onSav
   };
 
   const handleGenerateAI = async () => {
-    if (!aiTopic) return;
+    let finalTopic = aiTopic;
+    let finalContext = aiContext;
+
+    if (aiSource === 'episode') {
+        const episode = projects.find(p => p.id === selectedEpisodeId);
+        if (!episode) return alert("Please select an episode");
+        finalTopic = episode.title;
+        finalContext = episode.content;
+        setLinkedEpisodeId(episode.id); // Auto-link
+        
+        // Auto-use cover art if available and current is empty
+        if (episode.metadata.coverArt && !coverImage) {
+            setCoverImage(episode.metadata.coverArt);
+        }
+    } else {
+        if (!aiTopic) return alert("Please enter a topic");
+    }
+
     setIsGenerating(true);
     try {
-      const result = await generateBlogContent(aiTopic, aiContext);
+      const result = await generateBlogContent(finalTopic, finalContext);
       
       setTitle(result.title);
       setContent(result.content);
@@ -87,8 +112,8 @@ const BlogEditor: React.FC<BlogEditorProps> = ({ posts, profile, projects, onSav
       setTags(result.tags);
       setIsAiModalOpen(false);
       
-      // Auto-generate image if none exists
-      if (!coverImage) {
+      // Auto-generate image if none exists and not using episode cover
+      if (!coverImage && !((aiSource === 'episode' && projects.find(p => p.id === selectedEpisodeId)?.metadata.coverArt))) {
          try {
            const img = await generateImage(result.title + " blog post cover minimal artistic");
            setCoverImage(img);
@@ -150,7 +175,7 @@ const BlogEditor: React.FC<BlogEditorProps> = ({ posts, profile, projects, onSav
             <h1 className="text-2xl font-bold text-white">Blog & Articles</h1>
             <p className="text-slate-400">Manage your Afrikaans written content.</p>
           </div>
-          <Button onClick={handleCreateNew}>
+          <Button onClick={() => handleCreateNew(false)}>
             <Plus className="w-4 h-4 mr-2" /> New Article
           </Button>
         </div>
@@ -158,7 +183,7 @@ const BlogEditor: React.FC<BlogEditorProps> = ({ posts, profile, projects, onSav
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Create with AI Card */}
           <div 
-             onClick={handleCreateNew}
+             onClick={() => handleCreateNew(true)}
              className="group bg-gradient-to-br from-purple-900/20 to-[#181818] border border-purple-500/30 hover:border-purple-500 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer min-h-[200px] transition-all"
           >
              <div className="w-12 h-12 bg-purple-600/20 text-purple-400 rounded-full flex items-center justify-center mb-4 group-hover:bg-purple-600 group-hover:text-white transition-colors">
@@ -345,38 +370,83 @@ const BlogEditor: React.FC<BlogEditorProps> = ({ posts, profile, projects, onSav
       {/* AI Modal */}
       {isAiModalOpen && (
          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-            <div className="bg-[#181818] w-full max-w-lg rounded-2xl border border-[#333] shadow-2xl overflow-hidden">
+            <div className="bg-[#181818] w-full max-w-lg rounded-2xl border border-[#333] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
                <div className="p-6 border-b border-[#333] flex justify-between items-center bg-[#1f1f1f]">
                   <h3 className="font-bold text-white flex items-center gap-2">
                      <Wand2 className="w-5 h-5 text-purple-500" /> AI Blog Generator
                   </h3>
                   <button onClick={() => setIsAiModalOpen(false)}><X className="text-slate-400" /></button>
                </div>
-               <div className="p-6 space-y-4">
-                  <div>
-                     <label className="block text-sm font-medium text-slate-300 mb-1">Topic / Title Idea</label>
-                     <input 
-                        value={aiTopic}
-                        onChange={(e) => setAiTopic(e.target.value)}
-                        className="w-full bg-[#121212] border border-[#333] rounded-lg p-3 text-white focus:border-purple-500 focus:ring-purple-500"
-                        placeholder="e.g. The benefits of AI in education"
-                     />
+               
+               <div className="p-6 space-y-6">
+                  {/* Source Selector */}
+                  <div className="flex p-1 bg-[#121212] rounded-lg border border-[#333]">
+                     <button 
+                        onClick={() => setAiSource('custom')}
+                        className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${aiSource === 'custom' ? 'bg-[#2a2a2a] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+                     >
+                        Custom Topic
+                     </button>
+                     <button 
+                        onClick={() => setAiSource('episode')}
+                        className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${aiSource === 'episode' ? 'bg-[#2a2a2a] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+                     >
+                        From Episode
+                     </button>
                   </div>
-                  <div>
-                     <label className="block text-sm font-medium text-slate-300 mb-1">Context / Transcript / Notes</label>
-                     <textarea 
-                        value={aiContext}
-                        onChange={(e) => setAiContext(e.target.value)}
-                        rows={5}
-                        className="w-full bg-[#121212] border border-[#333] rounded-lg p-3 text-white focus:border-purple-500 focus:ring-purple-500 resize-none"
-                        placeholder="Paste podcast transcript or rough notes here..."
-                     />
-                  </div>
+
+                  {aiSource === 'custom' ? (
+                     <>
+                        <div>
+                           <label className="block text-sm font-medium text-slate-300 mb-1">Topic / Title Idea</label>
+                           <input 
+                              value={aiTopic}
+                              onChange={(e) => setAiTopic(e.target.value)}
+                              className="w-full bg-[#121212] border border-[#333] rounded-lg p-3 text-white focus:border-purple-500 focus:ring-purple-500"
+                              placeholder="e.g. The benefits of AI in education"
+                           />
+                        </div>
+                        <div>
+                           <label className="block text-sm font-medium text-slate-300 mb-1">Context / Notes</label>
+                           <textarea 
+                              value={aiContext}
+                              onChange={(e) => setAiContext(e.target.value)}
+                              rows={5}
+                              className="w-full bg-[#121212] border border-[#333] rounded-lg p-3 text-white focus:border-purple-500 focus:ring-purple-500 resize-none"
+                              placeholder="Paste rough notes, key points, or a brief here..."
+                           />
+                        </div>
+                     </>
+                  ) : (
+                     <div className="space-y-4">
+                        <div>
+                           <label className="block text-sm font-medium text-slate-300 mb-1">Select Episode</label>
+                           <select 
+                              value={selectedEpisodeId}
+                              onChange={(e) => setSelectedEpisodeId(e.target.value)}
+                              className="w-full bg-[#121212] border border-[#333] rounded-lg p-3 text-white focus:border-purple-500"
+                           >
+                              <option value="">-- Choose a Podcast Episode --</option>
+                              {projects.map(p => (
+                                 <option key={p.id} value={p.id}>{p.title}</option>
+                              ))}
+                           </select>
+                        </div>
+                        {selectedEpisodeId && (
+                           <div className="bg-[#222] p-3 rounded-lg border border-[#333] text-sm text-slate-400">
+                              <p><span className="text-white font-semibold">Selected:</span> {projects.find(p => p.id === selectedEpisodeId)?.title}</p>
+                              <p className="mt-1">We will use the script content from this episode to generate a summarized blog post.</p>
+                           </div>
+                        )}
+                     </div>
+                  )}
+
                   <div className="pt-2">
                      <Button 
                         onClick={handleGenerateAI} 
                         isLoading={isGenerating} 
                         className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                        disabled={aiSource === 'episode' && !selectedEpisodeId}
                      >
                         <Sparkles className="w-4 h-4 mr-2" /> Generate Full Post
                      </Button>
