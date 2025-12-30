@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { PodcastProject, AppRoute } from '../types';
-import { Plus, Mic, PlayCircle, Clock, ExternalLink, Play, TrendingUp, ArrowUpRight, Search } from 'lucide-react';
+import { Plus, Mic, PlayCircle, Clock, ExternalLink, Play, TrendingUp, ArrowUpRight, Search, RefreshCw } from 'lucide-react';
 import Button from '../components/Button';
 
 interface DashboardProps {
@@ -26,11 +26,23 @@ const MOCK_TRENDS: Trend[] = [
 
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onEditProject, projects }) => {
   const [trends, setTrends] = useState<Trend[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     // Simulate fetching trends
     setTrends(MOCK_TRENDS);
   }, []);
+
+  const handleRefreshTrends = () => {
+    setIsRefreshing(true);
+    // Simulate network delay and data update
+    setTimeout(() => {
+        // Shuffle trends to simulate change
+        const shuffled = [...MOCK_TRENDS].sort(() => 0.5 - Math.random());
+        setTrends(shuffled);
+        setIsRefreshing(false);
+    }, 800);
+  };
 
   const handleUseTrend = (trend: Trend) => {
     const draftProject: PodcastProject = {
@@ -192,39 +204,57 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onEditProject, projec
                     <h3 className="font-bold text-white flex items-center gap-2">
                         <TrendingUp className="w-4 h-4 text-blue-500" /> Google Trends
                     </h3>
-                    <span className="text-[10px] bg-[#121212] border border-[#333] text-slate-400 px-2 py-0.5 rounded">ZA • Daily</span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] bg-[#121212] border border-[#333] text-slate-400 px-2 py-0.5 rounded">ZA • Daily</span>
+                        <button 
+                            onClick={handleRefreshTrends} 
+                            className={`p-1 hover:bg-[#333] rounded text-slate-400 hover:text-white transition-colors ${isRefreshing ? 'animate-spin' : ''}`}
+                            title="Refresh Trends"
+                        >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
                 </div>
                 <div className="p-4">
-                    <p className="text-xs text-slate-500 mb-4">Trending searches in South Africa today. Click to create an episode.</p>
-                    <div className="space-y-3">
-                        {trends.map((trend, i) => (
-                            <div key={i} className="group flex items-center justify-between p-2 rounded-lg hover:bg-[#222] transition-colors border border-transparent hover:border-[#333]">
-                                <div className="min-w-0 flex-1 mr-3">
-                                    <div className="flex items-center gap-2 mb-0.5">
-                                        <span className="font-medium text-sm text-slate-200 truncate">{trend.title}</span>
-                                        <span className="text-[10px] text-green-500 font-bold bg-green-900/20 px-1.5 rounded">{trend.growth}</span>
+                    {isRefreshing ? (
+                        <div className="py-8 text-center flex flex-col items-center justify-center text-slate-500 space-y-2">
+                            <div className="w-5 h-5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></div>
+                            <span className="text-xs">Updating trends...</span>
+                        </div>
+                    ) : (
+                        <>
+                            <p className="text-xs text-slate-500 mb-4">Trending searches in South Africa today. Click to create an episode.</p>
+                            <div className="space-y-3">
+                                {trends.map((trend, i) => (
+                                    <div key={i} className="group flex items-center justify-between p-2 rounded-lg hover:bg-[#222] transition-colors border border-transparent hover:border-[#333]">
+                                        <div className="min-w-0 flex-1 mr-3">
+                                            <div className="flex items-center gap-2 mb-0.5">
+                                                <span className="font-medium text-sm text-slate-200 truncate">{trend.title}</span>
+                                                <span className="text-[10px] text-green-500 font-bold bg-green-900/20 px-1.5 rounded">{trend.growth}</span>
+                                            </div>
+                                            <div className="text-[10px] text-slate-500 flex items-center gap-2">
+                                                <span>{trend.volume} searches</span>
+                                                <span className="w-1 h-1 bg-slate-600 rounded-full"></span>
+                                                <span>{trend.category}</span>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => handleUseTrend(trend)}
+                                            className="opacity-0 group-hover:opacity-100 transition-opacity bg-blue-600 hover:bg-blue-700 text-white p-1.5 rounded-md"
+                                            title="Create Episode from Trend"
+                                        >
+                                            <ArrowUpRight className="w-4 h-4" />
+                                        </button>
                                     </div>
-                                    <div className="text-[10px] text-slate-500 flex items-center gap-2">
-                                        <span>{trend.volume} searches</span>
-                                        <span className="w-1 h-1 bg-slate-600 rounded-full"></span>
-                                        <span>{trend.category}</span>
-                                    </div>
-                                </div>
-                                <button 
-                                    onClick={() => handleUseTrend(trend)}
-                                    className="opacity-0 group-hover:opacity-100 transition-opacity bg-blue-600 hover:bg-blue-700 text-white p-1.5 rounded-md"
-                                    title="Create Episode from Trend"
-                                >
-                                    <ArrowUpRight className="w-4 h-4" />
-                                </button>
+                                ))}
                             </div>
-                        ))}
-                    </div>
-                    <div className="mt-4 pt-3 border-t border-[#272727] text-center">
-                        <a href="https://trends.google.com/trends/trendingsearches/daily?geo=ZA" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-white flex items-center justify-center gap-1">
-                            View more on Google Trends <ExternalLink className="w-3 h-3" />
-                        </a>
-                    </div>
+                            <div className="mt-4 pt-3 border-t border-[#272727] text-center">
+                                <a href="https://trends.google.com/trends/trendingsearches/daily?geo=ZA" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-white flex items-center justify-center gap-1">
+                                    View more on Google Trends <ExternalLink className="w-3 h-3" />
+                                </a>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 
