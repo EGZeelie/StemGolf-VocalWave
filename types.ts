@@ -5,8 +5,10 @@ export interface Chapter {
 }
 
 export interface ProductionSettings {
-  introMusic?: 'news' | 'story' | 'upbeat' | 'none';
-  outroMusic?: 'news' | 'story' | 'upbeat' | 'none';
+  introMusic?: 'news' | 'story' | 'upbeat' | 'none' | 'custom';
+  introAudioUrl?: string; // Data URL or Blob URL
+  outroMusic?: 'news' | 'story' | 'upbeat' | 'none' | 'custom';
+  outroAudioUrl?: string; // Data URL or Blob URL
   playbackSpeed: number; // 0.5 to 2.0
   pitch: number; // -12 to 12 semitones (simulated via rate or detune)
   introVolume?: number;

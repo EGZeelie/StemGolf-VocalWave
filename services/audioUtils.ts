@@ -82,6 +82,13 @@ export const audioBufferToWav = (buffer: AudioBuffer): Blob => {
 
 // --- AUDIO MIXING & GENERATION ---
 
+const loadAudio = async (url: string): Promise<AudioBuffer> => {
+  const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const response = await fetch(url);
+  const arrayBuffer = await response.arrayBuffer();
+  return await ctx.decodeAudioData(arrayBuffer);
+};
+
 // Generates a simple synthesized jingle so we don't rely on external assets
 const generateJingle = (type: 'news' | 'story' | 'upbeat', ctx: BaseAudioContext): AudioBuffer => {
   const duration = 4; // seconds
@@ -118,8 +125,10 @@ const generateJingle = (type: 'news' | 'story' | 'upbeat', ctx: BaseAudioContext
 
 export const mixPodcastAudio = async (
   voiceBuffer: AudioBuffer,
-  introType: 'news' | 'story' | 'upbeat' | 'none',
-  outroType: 'news' | 'story' | 'upbeat' | 'none',
+  introType: 'news' | 'story' | 'upbeat' | 'none' | 'custom',
+  outroType: 'news' | 'story' | 'upbeat' | 'none' | 'custom',
+  customIntroUrl: string | undefined,
+  customOutroUrl: string | undefined,
   speed: number = 1.0,
   introVolume: number = 0.5,
   outroVolume: number = 0.5,
@@ -129,7 +138,7 @@ export const mixPodcastAudio = async (
   const sampleRate = 24000;
   
   // Calculate roughly needed duration (will truncate later if needed, but OAC needs fixed length)
-  const estimatedDuration = (voiceBuffer.duration / speed) + 10; 
+  const estimatedDuration = (voiceBuffer.duration / speed) + 30; // +30s buffer for intros/outros
   const offlineCtx = new OfflineAudioContext(2, estimatedDuration * sampleRate, sampleRate);
 
   // Helper to play buffer with volume
@@ -143,16 +152,33 @@ export const mixPodcastAudio = async (
     src.start(time);
   };
 
-  // 1. Generate Jingles
-  const intro = introType !== 'none' ? generateJingle(introType, offlineCtx) : null;
-  const outro = outroType !== 'none' ? generateJingle(outroType, offlineCtx) : null;
+  // 1. Prepare Jingles/Custom Audio
+  let intro: AudioBuffer | null = null;
+  let outro: AudioBuffer | null = null;
+
+  try {
+    if (introType === 'custom' && customIntroUrl) {
+        intro = await loadAudio(customIntroUrl);
+    } else if (introType !== 'none' && introType !== 'custom') {
+        intro = generateJingle(introType as 'news'|'story'|'upbeat', offlineCtx);
+    }
+
+    if (outroType === 'custom' && customOutroUrl) {
+        outro = await loadAudio(customOutroUrl);
+    } else if (outroType !== 'none' && outroType !== 'custom') {
+        outro = generateJingle(outroType as 'news'|'story'|'upbeat', offlineCtx);
+    }
+  } catch (err) {
+      console.warn("Error loading custom audio", err);
+  }
 
   // 2. Schedule Intro
   let currentTime = 0;
   if (intro) {
     playTrack(intro, 0, introVolume);
-    // Overlap voice with end of intro by 1.5 second
-    currentTime += Math.max(0, intro.duration - 1.5); 
+    // Overlap voice with end of intro by 1.5 second (or less if intro is short)
+    const overlap = Math.min(1.5, intro.duration);
+    currentTime += Math.max(0, intro.duration - overlap); 
   }
 
   // 3. Schedule Voice
@@ -175,7 +201,8 @@ export const mixPodcastAudio = async (
   // 4. Schedule Outro
   if (outro) {
     // Overlap outro with end of voice by 1.0 second
-    const startOutro = Math.max(0, currentTime - 1.0);
+    const overlap = 1.0;
+    const startOutro = Math.max(0, currentTime - overlap);
     playTrack(outro, startOutro, outroVolume);
   }
 
