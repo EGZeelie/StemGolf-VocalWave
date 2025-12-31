@@ -9,20 +9,71 @@ const TEXT_MODEL = 'gemini-3-flash-preview';
 const TTS_MODEL = 'gemini-2.5-flash-preview-tts';
 const IMAGE_MODEL = 'gemini-2.5-flash-image';
 
-// Helper to clean JSON string from markdown code blocks or extra text
+// Helper to robustly extract the first valid JSON object or array from a string
 const cleanJsonString = (str: string): string => {
-  // Remove markdown code blocks if present
-  let cleaned = str.replace(/```json/g, '').replace(/```/g, '');
-  
-  // Find the first '{' and last '}' to handle potential preamble/postamble
-  const firstOpen = cleaned.indexOf('{');
-  const lastClose = cleaned.lastIndexOf('}');
-  
-  if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
-    cleaned = cleaned.substring(firstOpen, lastClose + 1);
+  const firstOpen = str.indexOf('{');
+  const firstArray = str.indexOf('[');
+
+  // Determine start based on which bracket appears first
+  let startIndex = -1;
+  let startChar = '';
+  let endChar = '';
+
+  if (firstOpen !== -1 && (firstArray === -1 || firstOpen < firstArray)) {
+    startIndex = firstOpen;
+    startChar = '{';
+    endChar = '}';
+  } else if (firstArray !== -1) {
+    startIndex = firstArray;
+    startChar = '[';
+    endChar = ']';
+  } else {
+    // No JSON structure found, return trimmed string to let parser fail
+    return str.trim();
   }
-  
-  return cleaned.trim();
+
+  let balance = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = startIndex; i < str.length; i++) {
+    const char = str[i];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escaped = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (!inString) {
+      if (char === startChar) {
+        balance++;
+      } else if (char === endChar) {
+        balance--;
+        if (balance === 0) {
+          // Found the matching closing bracket
+          return str.substring(startIndex, i + 1);
+        }
+      }
+    }
+  }
+
+  // Fallback: If strict balancing failed (e.g. malformed), try naive extraction
+  const lastClose = str.lastIndexOf(endChar);
+  if (lastClose > startIndex) {
+    return str.substring(startIndex, lastClose + 1);
+  }
+
+  return str.trim();
 };
 
 /**
