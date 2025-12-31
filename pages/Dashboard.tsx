@@ -17,12 +17,36 @@ interface Trend {
   growth: string;
 }
 
-const MOCK_TRENDS: Trend[] = [
+const MOCK_TRENDS_1D: Trend[] = [
   { title: "Springbokke vs All Blacks", volume: "200K+", category: "Sports", growth: "+500%" },
-  { title: "KykNET Verslag", volume: "20K+", category: "Entertainment", growth: "+50%" },
-  { title: "Beurtkrag Skedule", volume: "100K+", category: "News", growth: "+120%" },
-  { title: "Steve Hofmeyr", volume: "10K+", category: "Music", growth: "+20%" },
-  { title: "Bitcoin Prys", volume: "50K+", category: "Finance", growth: "+80%" }
+  { title: "Beurtkrag Fase 6", volume: "100K+", category: "News", growth: "+120%" },
+  { title: "Kaapstad Weer", volume: "50K+", category: "Weather", growth: "+80%" },
+  { title: "7de Laan Finale", volume: "20K+", category: "Entertainment", growth: "+50%" },
+  { title: "Lotto Uitslae", volume: "10K+", category: "Finance", growth: "+20%" }
+];
+
+const MOCK_TRENDS_3D: Trend[] = [
+  { title: "Naweek Sport Opsomming", volume: "50K+", category: "Sports", growth: "+150%" },
+  { title: "Fuel Price Hike", volume: "80K+", category: "Finance", growth: "+90%" },
+  { title: "Local Elections", volume: "120K+", category: "Politics", growth: "+200%" },
+  { title: "Steve Hofmeyr Konsert", volume: "15K+", category: "Music", growth: "+30%" },
+  { title: "Nuew Netflix Reeks", volume: "25K+", category: "Entertainment", growth: "+45%" }
+];
+
+const MOCK_TRENDS_7D: Trend[] = [
+  { title: "Rugby World Cup Prep", volume: "500K+", category: "Sports", growth: "+60%" },
+  { title: "Economy Update", volume: "40K+", category: "Finance", growth: "+15%" },
+  { title: "Education Crisis", volume: "60K+", category: "News", growth: "+25%" },
+  { title: "Viral Braai Challenge", volume: "100K+", category: "Social", growth: "+300%" },
+  { title: "Tech Expo JHB", volume: "10K+", category: "Tech", growth: "+10%" }
+];
+
+const MOCK_TRENDS_30D: Trend[] = [
+  { title: "Matric Results 2023", volume: "1M+", category: "Education", growth: "+40%" },
+  { title: "Tourism Stats Dec", volume: "200K+", category: "Business", growth: "+12%" },
+  { title: "Yearly Climate Report", volume: "50K+", category: "Science", growth: "+5%" },
+  { title: "Top Music Hits 2023", volume: "300K+", category: "Music", growth: "+20%" },
+  { title: "Property Market Trends", volume: "20K+", category: "Real Estate", growth: "+8%" }
 ];
 
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onEditProject, projects }) => {
@@ -31,24 +55,36 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onEditProject, projec
   const [trendRange, setTrendRange] = useState('1d');
 
   useEffect(() => {
-    // Simulate fetching trends
-    setTrends(MOCK_TRENDS);
-  }, []);
+    loadTrends(trendRange);
+  }, [trendRange]);
 
-  const handleRefreshTrends = () => {
+  const loadTrends = (range: string) => {
     setIsRefreshing(true);
     // Simulate network delay and data update
     setTimeout(() => {
-        // Shuffle trends to simulate change
-        const shuffled = [...MOCK_TRENDS].sort(() => 0.5 - Math.random());
-        setTrends(shuffled);
+        let data: Trend[] = [];
+        switch(range) {
+            case '1d': data = MOCK_TRENDS_1D; break;
+            case '3d': data = MOCK_TRENDS_3D; break;
+            case '7d': data = MOCK_TRENDS_7D; break;
+            case '30d': data = MOCK_TRENDS_30D; break;
+            default: data = MOCK_TRENDS_1D;
+        }
+        // Shuffle slightly to simulate live updates
+        if (Math.random() > 0.7) {
+            data = [...data].sort(() => 0.5 - Math.random());
+        }
+        setTrends(data);
         setIsRefreshing(false);
-    }, 800);
+    }, 600);
+  };
+
+  const handleRefreshTrends = () => {
+    loadTrends(trendRange);
   };
 
   const handleRangeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
       setTrendRange(e.target.value);
-      handleRefreshTrends();
   };
 
   const handleUseTrend = (trend: Trend) => {
