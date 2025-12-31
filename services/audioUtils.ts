@@ -1,3 +1,4 @@
+
 // Utility to convert raw PCM data to a WAV Blob for playback/download
 export const pcmToWav = (
   pcmData: Float32Array | Uint8Array,
@@ -8,7 +9,9 @@ export const pcmToWav = (
 };
 
 export const decodeBase64Audio = async (base64String: string, audioContext: AudioContext): Promise<AudioBuffer> => {
-  const binaryString = atob(base64String);
+  // Sanitize input to remove any whitespace that causes atob to fail
+  const sanitizedString = base64String.replace(/\s/g, '');
+  const binaryString = atob(sanitizedString);
   const len = binaryString.length;
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) {
@@ -194,7 +197,7 @@ export const mixPodcastAudio = async (
       startTime: number, 
       maxVol: number, 
       fadeInDuration: number = 0, 
-      fadeOutDuration: number = 0,
+      fadeOutDuration: number = 0, 
       playbackRate: number = 1.0
   ) => {
       const src = offlineCtx.createBufferSource();

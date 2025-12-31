@@ -15,6 +15,11 @@ const postToPage = async (
         return { success: false, error: "Missing Page ID or Access Token" };
     }
 
+    // Basic security validation: Page IDs are typically numeric
+    if (!/^\d+$/.test(pageId)) {
+        return { success: false, error: "Invalid Page ID format" };
+    }
+
     try {
       // Construct URL parameters
       const params = new URLSearchParams({

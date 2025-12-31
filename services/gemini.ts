@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { decodeBase64Audio, audioBufferToWav } from "./audioUtils";
 
@@ -11,8 +12,11 @@ const IMAGE_MODEL = 'gemini-2.5-flash-image';
 
 // Helper to robustly extract the first valid JSON object or array from a string
 const cleanJsonString = (str: string): string => {
-  const firstOpen = str.indexOf('{');
-  const firstArray = str.indexOf('[');
+  // Step 1: Remove Markdown code fences if present (e.g. ```json ... ```)
+  let cleaned = str.replace(/```json\s*/g, '').replace(/```/g, '');
+
+  const firstOpen = cleaned.indexOf('{');
+  const firstArray = cleaned.indexOf('[');
 
   // Determine start based on which bracket appears first
   let startIndex = -1;
@@ -29,15 +33,15 @@ const cleanJsonString = (str: string): string => {
     endChar = ']';
   } else {
     // No JSON structure found, return trimmed string to let parser fail
-    return str.trim();
+    return cleaned.trim();
   }
 
   let balance = 0;
   let inString = false;
   let escaped = false;
 
-  for (let i = startIndex; i < str.length; i++) {
-    const char = str[i];
+  for (let i = startIndex; i < cleaned.length; i++) {
+    const char = cleaned[i];
 
     if (escaped) {
       escaped = false;
@@ -61,19 +65,19 @@ const cleanJsonString = (str: string): string => {
         balance--;
         if (balance === 0) {
           // Found the matching closing bracket
-          return str.substring(startIndex, i + 1);
+          return cleaned.substring(startIndex, i + 1);
         }
       }
     }
   }
 
   // Fallback: If strict balancing failed (e.g. malformed), try naive extraction
-  const lastClose = str.lastIndexOf(endChar);
+  const lastClose = cleaned.lastIndexOf(endChar);
   if (lastClose > startIndex) {
-    return str.substring(startIndex, lastClose + 1);
+    return cleaned.substring(startIndex, lastClose + 1);
   }
 
-  return str.trim();
+  return cleaned.trim();
 };
 
 /**
@@ -298,7 +302,7 @@ export const synthesizeSpeech = async (
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     
     if (!base64Audio) {
-      throw new Error("No audio data received from Gemini. Response might be empty.");
+      throw new Error("No audio data received from Gemini. Response might be empty or content blocked.");
     }
 
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -325,9 +329,6 @@ export const synthesizeSpeech = async (
 export const generateImage = async (prompt: string, aspectRatio: string = "1:1"): Promise<string> => {
   if (!API_KEY) throw new Error("API Key missing");
 
-  // Map common string requests to supported ratios if strictly needed, 
-  // but Gemini API usually takes "1:1", "16:9" directly.
-  
   try {
     const response = await ai.models.generateContent({
       model: IMAGE_MODEL,
@@ -336,7 +337,7 @@ export const generateImage = async (prompt: string, aspectRatio: string = "1:1")
       },
       config: {
         imageConfig: {
-            aspectRatio: aspectRatio as any // Casting to any to avoid strict type checks if SDK types lag
+            aspectRatio: aspectRatio as any
         }
       }
     });
