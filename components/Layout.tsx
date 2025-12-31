@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Mic2, LayoutDashboard, Settings, Menu, X, Globe, BarChart3, Search, User, Zap, Radio, HelpCircle, FileText, LogOut, ShieldAlert } from 'lucide-react';
+import { Mic2, LayoutDashboard, Settings, Menu, X, Globe, BarChart3, Search, User, Zap, Radio, HelpCircle, FileText, LogOut, ShieldAlert, Megaphone } from 'lucide-react';
 import { AppRoute, CreatorProfile } from '../types';
 
 interface LayoutProps {
@@ -79,6 +79,13 @@ const Layout: React.FC<LayoutProps> = ({ children, currentRoute, onNavigate, pro
              <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-[#181818] border-l-2 border-transparent">
                 <Radio className="w-4 h-4 text-slate-500" />
                 Distribution
+             </button>
+             <button 
+                onClick={() => onNavigate(AppRoute.SPONSOR_MANAGER)}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors border-l-2 ${currentRoute === AppRoute.SPONSOR_MANAGER ? 'border-orange-500 bg-[#1f1f1f] text-white' : 'border-transparent text-slate-400 hover:text-white hover:bg-[#181818]'}`}
+             >
+                <Megaphone className="w-4 h-4 text-slate-500" />
+                Sponsors & Ads
              </button>
              <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-[#181818] border-l-2 border-transparent">
                 <Zap className="w-4 h-4 text-slate-500" />

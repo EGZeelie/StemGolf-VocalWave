@@ -11,7 +11,8 @@ import AdminDashboard from './pages/AdminDashboard';
 import StreamingDeck from './pages/StreamingDeck';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
-import { AppRoute, PodcastProject, CreatorProfile, BlogPost, Series } from './types';
+import SponsorManager from './pages/SponsorManager'; // New Import
+import { AppRoute, PodcastProject, CreatorProfile, BlogPost, Series, Sponsor } from './types';
 import { db } from './services/db';
 import { PixelService } from './services/pixel';
 import { SEOService } from './services/seo';
@@ -129,6 +130,7 @@ const App: React.FC = () => {
   const [projects, setProjects] = useState<PodcastProject[]>([]);
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
   const [seriesList, setSeriesList] = useState<Series[]>([]);
+  const [sponsors, setSponsors] = useState<Sponsor[]>([]);
   const [profile, setProfile] = useState<CreatorProfile>(DEFAULT_PROFILE);
   
   const [editingProject, setEditingProject] = useState<PodcastProject | null>(null);
@@ -140,10 +142,11 @@ const App: React.FC = () => {
 
     const loadData = async () => {
       try {
-        const [loadedProjects, loadedBlogs, loadedSeries, loadedProfile] = await Promise.all([
+        const [loadedProjects, loadedBlogs, loadedSeries, loadedSponsors, loadedProfile] = await Promise.all([
           db.projects.list(),
           db.content.list(),
           db.series.list(),
+          db.sponsors.list(),
           db.users.getProfile()
         ]);
 
@@ -156,6 +159,7 @@ const App: React.FC = () => {
         setProjects(loadedProjects.length > 0 ? loadedProjects : []);
         setBlogPosts(loadedBlogs.length > 0 ? loadedBlogs : []);
         setSeriesList(loadedSeries);
+        setSponsors(loadedSponsors);
 
         if (session) {
           setIsAuthenticated(true);
@@ -352,6 +356,26 @@ const App: React.FC = () => {
     setSeriesList(prev => [series, ...prev]);
   };
 
+  const handleSaveSponsor = async (sponsor: Sponsor) => {
+    await db.sponsors.save(sponsor);
+    setSponsors(prev => {
+      const idx = prev.findIndex(s => s.id === sponsor.id);
+      if (idx >= 0) {
+        const newSponsors = [...prev];
+        newSponsors[idx] = sponsor;
+        return newSponsors;
+      }
+      return [sponsor, ...prev];
+    });
+  };
+
+  const handleDeleteSponsor = async (id: string) => {
+    if (confirm("Remove this sponsor?")) {
+      await db.sponsors.delete(id);
+      setSponsors(prev => prev.filter(s => s.id !== id));
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="h-screen w-full bg-[#020617] flex flex-col items-center justify-center text-white">
@@ -411,6 +435,14 @@ const App: React.FC = () => {
         />
       )}
 
+      {currentRoute === AppRoute.SPONSOR_MANAGER && (
+        <SponsorManager
+          sponsors={sponsors}
+          onSave={handleSaveSponsor}
+          onDelete={handleDeleteSponsor}
+        />
+      )}
+
       {currentRoute === AppRoute.SETTINGS && (
         <Settings 
           profile={profile}
@@ -423,6 +455,7 @@ const App: React.FC = () => {
           profile={profile} 
           projects={projects}
           posts={blogPosts}
+          sponsors={sponsors}
           onNavigate={handleNavigate}
         />
       )}

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PodcastProject, GenerationStatus, ProductionSettings, Chapter, DistributionMetadata, CreatorProfile, BlogPost, Series, YoutubeMetadata } from '../types';
 import Button from '../components/Button';
-import { Wand2, Play, Pause, Download, Save, RefreshCw, Volume2, Music, Mic2, Layers, Sliders, Flag, Sparkles, ChevronDown, ChevronUp, Globe, Rss, Calendar, CheckCircle, AlertCircle, Share2, Upload, Image as ImageIcon, FolderOpen, Plus, Copy, Trash2, X as CloseIcon, Search, ArrowUpDown, Link, Loader2, XCircle, FileText, ListMusic, Youtube, Video, SidebarClose, SidebarOpen, FileAudio, MoreVertical, Mic, Square, Type, Gauge, MonitorPlay, Users, Twitter, Facebook, AudioWaveform, AudioLines, Speaker, Waves } from 'lucide-react';
+import { Wand2, Play, Pause, Download, Save, RefreshCw, Volume2, Music, Mic2, Layers, Sliders, Flag, Sparkles, ChevronDown, ChevronUp, Globe, Rss, Calendar, CheckCircle, AlertCircle, Share2, Upload, Image as ImageIcon, FolderOpen, Plus, Copy, Trash2, X as CloseIcon, Search, ArrowUpDown, Link, Loader2, XCircle, FileText, ListMusic, Youtube, Video, SidebarClose, SidebarOpen, FileAudio, MoreVertical, Mic, Square, Type, Gauge, MonitorPlay, Users, Twitter, Facebook, AudioWaveform, AudioLines, Speaker, Waves, Filter } from 'lucide-react';
 import { generateAfrikaansScript, synthesizeSpeech, generateImage, generateBlogContent, generateYoutubeMetadata } from '../services/gemini';
 import { mixPodcastAudio, audioBufferToWav } from '../services/audioUtils';
 import { generateRSSFeed, downloadRSS } from '../services/rssUtils';
@@ -813,23 +813,80 @@ const Studio: React.FC<StudioProps> = ({
       {/* 1. PROJECT SIDEBAR */}
       <div className={`absolute top-0 bottom-0 left-0 z-40 w-80 bg-[#121212] border-r border-[#272727] shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out lg:static lg:shadow-none ${isProjectListOpen ? 'translate-x-0' : '-translate-x-full lg:hidden'}`}>
          {/* ... Sidebar Content Unchanged ... */}
-         <div className="p-4 border-b border-[#272727] flex items-center justify-between bg-[#181818]">
-           <h3 className="font-bold text-white flex items-center gap-2">
-              <FolderOpen className="w-5 h-5 text-orange-500" /> Projects
-              <span className="text-xs text-slate-500 font-normal">({projects.length})</span>
-           </h3>
-           <button onClick={() => setIsProjectListOpen(false)} className="lg:hidden p-1 rounded hover:bg-[#272727] text-slate-400">
-             <CloseIcon className="w-5 h-5" />
-           </button>
+         <div className="p-4 border-b border-[#272727] flex flex-col gap-4 bg-[#181818]">
+           <div className="flex items-center justify-between">
+             <h3 className="font-bold text-white flex items-center gap-2">
+                <FolderOpen className="w-5 h-5 text-orange-500" /> Projects
+                <span className="text-xs text-slate-500 font-normal">({projects.length})</span>
+             </h3>
+             <button onClick={() => setIsProjectListOpen(false)} className="lg:hidden p-1 rounded hover:bg-[#272727] text-slate-400">
+               <CloseIcon className="w-5 h-5" />
+             </button>
+           </div>
+           
+           {/* Search and Filters */}
+           <div className="space-y-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                <input 
+                  type="text" 
+                  placeholder="Search projects..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-[#121212] border border-[#333] rounded-lg pl-8 pr-3 py-2 text-xs text-white focus:border-orange-500 focus:outline-none placeholder-slate-600"
+                />
+              </div>
+              <div className="flex gap-2">
+                <select 
+                  value={sortBy} 
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="flex-1 bg-[#121212] border border-[#333] rounded-lg px-2 py-1.5 text-xs text-slate-400 focus:border-orange-500 outline-none"
+                >
+                  <option value="date">Newest</option>
+                  <option value="title">Name</option>
+                </select>
+                <select 
+                  value={filterStatus} 
+                  onChange={(e) => setFilterStatus(e.target.value as any)}
+                  className="flex-1 bg-[#121212] border border-[#333] rounded-lg px-2 py-1.5 text-xs text-slate-400 focus:border-orange-500 outline-none"
+                >
+                  <option value="all">All Status</option>
+                  <option value="draft">Drafts</option>
+                  <option value="published">Published</option>
+                </select>
+              </div>
+           </div>
          </div>
+         
          {/* ... (Existing Sidebar Logic) ... */}
          <div className="p-3 flex-1 overflow-hidden flex flex-col">
-            <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1 pb-4">
-              {filteredProjects.map(p => (
-                  <div key={p.id} className={`group relative p-3 rounded-xl border transition-all cursor-pointer ${initialProject?.id === p.id ? 'bg-[#1f1f1f] border-orange-600' : 'bg-[#121212] border-[#272727] hover:bg-[#181818]'}`} onClick={() => handleProjectSelect(p)}>
-                     <h4 className="font-semibold text-sm truncate text-slate-300">{p.title}</h4>
-                  </div>
-              ))}
+            <div className="space-y-2 overflow-y-auto custom-scrollbar flex-1 pb-4">
+              {filteredProjects.length === 0 ? (
+                 <div className="text-center py-8 text-xs text-slate-500">No projects found.</div>
+              ) : (
+                filteredProjects.map(p => (
+                    <div key={p.id} className={`group relative p-3 rounded-xl border transition-all cursor-pointer ${initialProject?.id === p.id ? 'bg-[#1f1f1f] border-orange-600' : 'bg-[#121212] border-[#272727] hover:bg-[#181818]'}`} onClick={() => handleProjectSelect(p)}>
+                       <div className="flex justify-between items-start mb-1">
+                          <h4 className={`font-semibold text-sm truncate max-w-[80%] ${initialProject?.id === p.id ? 'text-white' : 'text-slate-300'}`}>{p.title}</h4>
+                          <span 
+                            className={`w-2 h-2 rounded-full mt-1.5 ${
+                                p.distributionStatus === 'published' ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 
+                                p.distributionStatus === 'scheduled' ? 'bg-blue-500' : 
+                                p.distributionStatus === 'failed' ? 'bg-red-500' : 
+                                'bg-orange-500/50'
+                            }`} 
+                            title={p.distributionStatus}
+                          ></span>
+                       </div>
+                       <div className="flex justify-between items-center mt-2">
+                          <span className="text-[10px] text-slate-500">{new Date(p.createdAt).toLocaleDateString()}</span>
+                          <span className={`text-[9px] uppercase px-1.5 py-0.5 rounded ${initialProject?.id === p.id ? 'bg-black/30 text-orange-400' : 'bg-[#1a1a1a] text-slate-600'}`}>
+                             {p.tone}
+                          </span>
+                       </div>
+                    </div>
+                ))
+              )}
             </div>
          </div>
       </div>

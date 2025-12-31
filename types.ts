@@ -63,6 +63,20 @@ export interface Series {
   createdAt: number;
 }
 
+export interface Sponsor {
+  id: string;
+  name: string;
+  tagline?: string;
+  description: string; // Product/Service Info
+  logoUrl?: string;
+  websiteUrl: string;
+  offerTitle: string; // e.g., "Get 20% Off"
+  promoCode: string;
+  termsAndConditions: string;
+  isActive: boolean;
+  createdAt: number;
+}
+
 export interface PodcastProject {
   id: string;
   title: string;
@@ -167,6 +181,7 @@ export enum AppRoute {
   ANALYTICS = 'analytics',
   SETTINGS = 'settings',
   CREATOR_SETTINGS = 'creator_settings',
+  SPONSOR_MANAGER = 'sponsor_manager',
   PUBLIC_PAGE = 'public_page',
   ADMIN = 'admin',
   STREAMING_DECK = 'streaming_deck'

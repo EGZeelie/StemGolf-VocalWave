@@ -1,19 +1,21 @@
 
 import React, { useState, useEffect } from 'react';
-import { CreatorProfile, PodcastProject, AppRoute, BlogPost } from '../types';
-import { Play, Pause, ArrowLeft, Headphones, Mail, ArrowRight, Instagram, Twitter, Facebook, Linkedin, Circle, Calendar, User, Clock, Search, Home, Info, Mic, FileText, Phone, AlertTriangle, X, Menu, Share2, Volume2, SkipBack, SkipForward, Youtube, Link as LinkIcon, ExternalLink } from 'lucide-react';
+import { CreatorProfile, PodcastProject, AppRoute, BlogPost, Sponsor } from '../types';
+import { Play, Pause, ArrowLeft, Headphones, Mail, ArrowRight, Instagram, Twitter, Facebook, Linkedin, Circle, Calendar, User, Clock, Search, Home, Info, Mic, FileText, Phone, AlertTriangle, X, Menu, Share2, Volume2, SkipBack, SkipForward, Youtube, Link as LinkIcon, ExternalLink, Megaphone, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface PublicPageProps {
   profile: CreatorProfile;
   projects: PodcastProject[];
   posts: BlogPost[];
+  sponsors: Sponsor[];
   onNavigate: (route: AppRoute) => void;
 }
 
-type PublicView = 'home' | 'about' | 'episodes' | 'episode_detail' | 'blog' | 'blog_detail' | 'contact' | '404';
+type PublicView = 'home' | 'about' | 'episodes' | 'episode_detail' | 'blog' | 'blog_detail' | 'sponsors' | 'contact' | '404';
 
-const PublicPage: React.FC<PublicPageProps> = ({ profile, projects, posts, onNavigate }) => {
+const PublicPage: React.FC<PublicPageProps> = ({ profile, projects, posts, sponsors, onNavigate }) => {
   const publishedEpisodes = projects.filter(p => p.distributionStatus === 'published' || p.distributionStatus === 'scheduled');
+  const activeSponsors = sponsors.filter(s => s.isActive);
   
   // --- STATE ---
   const [currentView, setCurrentView] = useState<PublicView>('home');
@@ -166,6 +168,7 @@ const PublicPage: React.FC<PublicPageProps> = ({ profile, projects, posts, onNav
              { id: 'about', label: 'About' },
              { id: 'episodes', label: 'Episodes' },
              { id: 'blog', label: 'Blog' },
+             { id: 'sponsors', label: 'Sponsors' },
              { id: 'contact', label: 'Contact' }
           ].map(link => (
              <button 
@@ -197,6 +200,7 @@ const PublicPage: React.FC<PublicPageProps> = ({ profile, projects, posts, onNav
              { id: 'about', label: 'About' },
              { id: 'episodes', label: 'Episodes' },
              { id: 'blog', label: 'Blog' },
+             { id: 'sponsors', label: 'Sponsors' },
              { id: 'contact', label: 'Contact' }
             ].map(link => (
               <button 
@@ -241,6 +245,7 @@ const PublicPage: React.FC<PublicPageProps> = ({ profile, projects, posts, onNav
                   <li><button onClick={() => navigateTo('home')} className="hover:text-[var(--accent)] transition-colors">Home</button></li>
                   <li><button onClick={() => navigateTo('about')} className="hover:text-[var(--accent)] transition-colors">About Us</button></li>
                   <li><button onClick={() => navigateTo('episodes')} className="hover:text-[var(--accent)] transition-colors">Episodes</button></li>
+                  <li><button onClick={() => navigateTo('sponsors')} className="hover:text-[var(--accent)] transition-colors">Our Sponsors</button></li>
                   <li><button onClick={() => navigateTo('blog')} className="hover:text-[var(--accent)] transition-colors">Latest News</button></li>
                </ul>
             </div>
@@ -485,6 +490,95 @@ const PublicPage: React.FC<PublicPageProps> = ({ profile, projects, posts, onNav
       </div>
     </section>
   );
+
+  const renderSponsors = () => {
+    return (
+        <section className="py-24 min-h-screen animate-in fade-in duration-500">
+            <div className="max-w-7xl mx-auto px-6">
+                <div className="text-center max-w-3xl mx-auto mb-20">
+                    <h1 className="text-5xl md:text-6xl font-bold mb-6">Our Partners</h1>
+                    <p className="text-xl text-slate-400 mb-10">We are proud to work with these amazing brands. Use our promo codes to get exclusive deals and support the show.</p>
+                </div>
+
+                {activeSponsors.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-8">
+                        {activeSponsors.map(sponsor => (
+                            <div key={sponsor.id} className="bg-white/5 border border-white/10 rounded-3xl p-8 md:p-10 flex flex-col lg:flex-row gap-10 items-start lg:items-center hover:border-[var(--accent)]/30 transition-all">
+                                {/* Left: Logo */}
+                                <div className="w-full lg:w-64 bg-white rounded-2xl p-6 flex items-center justify-center flex-shrink-0 shadow-lg">
+                                    {sponsor.logoUrl ? (
+                                        <img src={sponsor.logoUrl} alt={sponsor.name} className="max-w-full max-h-32 object-contain" />
+                                    ) : (
+                                        <Megaphone className="w-16 h-16 text-black" />
+                                    )}
+                                </div>
+
+                                {/* Middle: Content */}
+                                <div className="flex-1">
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--accent)]/20 text-[var(--accent)] text-xs font-bold uppercase tracking-wider mb-4 border border-[var(--accent)]/30">
+                                        Verified Partner
+                                    </div>
+                                    <h3 className="text-3xl font-bold text-white mb-2">{sponsor.name}</h3>
+                                    {sponsor.tagline && <p className="text-[var(--accent)] font-medium mb-4">{sponsor.tagline}</p>}
+                                    <p className="text-slate-300 leading-relaxed mb-6">
+                                        {sponsor.description}
+                                    </p>
+                                    
+                                    {/* Terms Accordion */}
+                                    <details className="group">
+                                        <summary className="flex items-center gap-2 text-xs text-slate-500 font-bold uppercase tracking-wider cursor-pointer hover:text-white transition-colors select-none">
+                                            Terms & Conditions
+                                            <ChevronDown className="w-3 h-3 group-open:hidden" />
+                                            <ChevronUp className="w-3 h-3 hidden group-open:block" />
+                                        </summary>
+                                        <p className="mt-3 text-sm text-slate-400 font-mono whitespace-pre-wrap pl-4 border-l border-white/10">
+                                            {sponsor.termsAndConditions}
+                                        </p>
+                                    </details>
+                                </div>
+
+                                {/* Right: Deal */}
+                                <div className="w-full lg:w-80 bg-[#121212] rounded-2xl p-6 border border-white/10 flex-shrink-0 flex flex-col items-center text-center shadow-2xl">
+                                    <div className="text-sm text-slate-400 uppercase font-bold tracking-wider mb-2">Exclusive Offer</div>
+                                    <div className="text-2xl font-bold text-white mb-6">{sponsor.offerTitle}</div>
+                                    
+                                    <div 
+                                        className="w-full bg-[#1f1f1f] border border-white/10 border-dashed rounded-lg p-3 mb-4 cursor-pointer hover:border-[var(--accent)] group relative"
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(sponsor.promoCode);
+                                            alert("Code copied!");
+                                        }}
+                                    >
+                                        <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Promo Code</div>
+                                        <div className="text-xl font-mono font-bold text-[var(--accent)] tracking-widest">{sponsor.promoCode}</div>
+                                        <div className="absolute inset-0 bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
+                                            <span className="flex items-center gap-2 text-white font-bold text-sm"><Copy className="w-4 h-4"/> Copy Code</span>
+                                        </div>
+                                    </div>
+
+                                    <a 
+                                        href={sponsor.websiteUrl} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="w-full py-3 bg-white text-black font-bold rounded-lg hover:bg-slate-200 transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        Redeem Offer <ExternalLink className="w-4 h-4" />
+                                    </a>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-32 bg-white/5 rounded-3xl border border-dashed border-white/10">
+                        <Megaphone className="w-16 h-16 text-slate-700 mx-auto mb-6" />
+                        <h3 className="text-2xl font-bold text-white mb-2">No Active Sponsors</h3>
+                        <p className="text-slate-500 text-lg">Check back later for exclusive deals.</p>
+                    </div>
+                )}
+            </div>
+        </section>
+    );
+  };
 
   const renderEpisodes = () => {
     // Filter logic
@@ -905,6 +999,7 @@ const PublicPage: React.FC<PublicPageProps> = ({ profile, projects, posts, onNav
          {currentView === 'episode_detail' && renderEpisodeDetail()}
          {currentView === 'blog' && renderBlog()}
          {currentView === 'blog_detail' && renderBlogDetail()}
+         {currentView === 'sponsors' && renderSponsors()}
          {currentView === 'contact' && renderContact()}
          {currentView === '404' && render404()}
       </main>

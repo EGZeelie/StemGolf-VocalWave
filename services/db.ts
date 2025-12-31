@@ -1,5 +1,6 @@
+
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import { PodcastProject, BlogPost, CreatorProfile, Series } from '../types';
+import { PodcastProject, BlogPost, CreatorProfile, Series, Sponsor } from '../types';
 
 interface StemGolfDB extends DBSchema {
   projects: {
@@ -17,6 +18,11 @@ interface StemGolfDB extends DBSchema {
     value: Series;
     indexes: { 'by-date': number };
   };
+  sponsors: {
+    key: string;
+    value: Sponsor;
+    indexes: { 'by-date': number };
+  };
   settings: {
     key: string;
     value: CreatorProfile;
@@ -24,7 +30,7 @@ interface StemGolfDB extends DBSchema {
 }
 
 const DB_NAME = 'stemgolf-cms-db';
-const DB_VERSION = 2; // Bumped version for Series support
+const DB_VERSION = 3; // Bumped version for Sponsors support
 
 let dbPromise: Promise<IDBPDatabase<StemGolfDB>>;
 
@@ -48,6 +54,12 @@ const initDB = () => {
         if (!db.objectStoreNames.contains('series')) {
           const seriesStore = db.createObjectStore('series', { keyPath: 'id' });
           seriesStore.createIndex('by-date', 'createdAt');
+        }
+
+        // Sponsors Store (New in V3)
+        if (!db.objectStoreNames.contains('sponsors')) {
+          const sponsorStore = db.createObjectStore('sponsors', { keyPath: 'id' });
+          sponsorStore.createIndex('by-date', 'createdAt');
         }
 
         // Settings/Profile Store
@@ -122,6 +134,22 @@ export const db = {
     delete: async (id: string) => {
       const db = await initDB();
       await db.delete('series', id);
+    }
+  },
+
+  sponsors: {
+    list: async () => {
+      const db = await initDB();
+      const sponsors = await db.getAllFromIndex('sponsors', 'by-date');
+      return sponsors.reverse();
+    },
+    save: async (sponsor: Sponsor) => {
+      const db = await initDB();
+      await db.put('sponsors', sponsor);
+    },
+    delete: async (id: string) => {
+      const db = await initDB();
+      await db.delete('sponsors', id);
     }
   },
 
