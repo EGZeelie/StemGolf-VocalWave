@@ -112,6 +112,7 @@ export interface CreatorProfile {
   theme: 'classic' | 'minimal' | 'bold';
   font: 'modern' | 'serif';
   // Pro Features
+  plan: 'free' | 'pro'; // Subscription status
   customDomain?: string;
   removeBranding: boolean;
 }

@@ -111,6 +111,7 @@ const DEFAULT_PROFILE: CreatorProfile = {
   },
   theme: 'classic',
   font: 'modern',
+  plan: 'free',
   removeBranding: false
 };
 

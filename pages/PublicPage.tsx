@@ -267,7 +267,11 @@ const PublicPage: React.FC<PublicPageProps> = ({ profile, projects, posts, onNav
          
          <div className="mt-20 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center text-xs text-slate-600 gap-4">
             <span>© {new Date().getFullYear()} {profile.name}. All Rights Reserved.</span>
-            <span>Powered by <span className="text-slate-400 font-bold">StemGolf AI</span></span>
+            
+            {/* Conditional Branding */}
+            {(!profile.removeBranding || profile.plan !== 'pro') && (
+                <span>Powered by <span className="text-slate-400 font-bold">StemGolf AI</span></span>
+            )}
          </div>
       </div>
     </section>

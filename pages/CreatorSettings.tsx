@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { CreatorProfile, AppRoute, CustomLink, Integrations, HostProfile } from '../types';
 import Button from '../components/Button';
-import { Globe, ArrowRight, ExternalLink, Lock, CreditCard, Layout, Type, Check, AlertCircle, Plus, Trash2, Youtube, Link as LinkIcon, Search, BarChart3, HelpCircle, Facebook, Twitter, Users, Upload, User } from 'lucide-react';
+import { Globe, ArrowRight, ExternalLink, Lock, CreditCard, Layout, Type, Check, AlertCircle, Plus, Trash2, Youtube, Link as LinkIcon, Search, BarChart3, HelpCircle, Facebook, Twitter, Users, Upload, User, Crown } from 'lucide-react';
 
 interface CreatorSettingsProps {
   profile: CreatorProfile;
@@ -32,6 +32,8 @@ const CreatorSettings: React.FC<CreatorSettingsProps> = ({ profile, onUpdate, on
   const [hostBio, setHostBio] = useState('');
   const [hostImage, setHostImage] = useState('');
   const hostImageRef = useRef<HTMLInputElement>(null);
+
+  const isPro = profile.plan === 'pro';
 
   const handleChange = (field: keyof CreatorProfile, value: any) => {
     onUpdate({ ...profile, [field]: value });
@@ -123,6 +125,16 @@ const CreatorSettings: React.FC<CreatorSettingsProps> = ({ profile, onUpdate, on
           ...profile,
           hosts: (profile.hosts || []).filter(h => h.id !== id)
       });
+  };
+
+  const handleUpgrade = () => {
+      if (confirm("Confirm upgrade to Pro Plan ($19/mo)?\n\nThis will unlock custom domains and white-labeling.")) {
+          // Simulate successful payment
+          setTimeout(() => {
+              onUpdate({ ...profile, plan: 'pro' });
+              alert("Upgrade Successful! Welcome to Pro.");
+          }, 1000);
+      }
   };
 
   const ConnectionBadge = ({ isConnected }: { isConnected: boolean }) => (
@@ -636,14 +648,15 @@ const CreatorSettings: React.FC<CreatorSettingsProps> = ({ profile, onUpdate, on
 
         {/* Right Col: Pro Features */}
         <div className="space-y-6">
-           <div className="bg-gradient-to-br from-slate-900 to-black rounded-xl shadow-lg border border-slate-700 text-white p-6 relative overflow-hidden">
+           <div className={`bg-gradient-to-br from-slate-900 to-black rounded-xl shadow-lg border border-slate-700 text-white p-6 relative overflow-hidden ${isPro ? 'ring-2 ring-yellow-500/50' : ''}`}>
                <div className="absolute inset-0 bg-orange-600/5"></div>
                <div className="relative z-10">
                   <div className="flex items-center gap-2 mb-4">
-                     <div className="p-1 bg-yellow-400 rounded text-slate-900">
-                        <Lock className="w-4 h-4" />
+                     <div className={`p-1 rounded text-slate-900 ${isPro ? 'bg-yellow-400' : 'bg-slate-200'}`}>
+                        {isPro ? <Crown className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                      </div>
                      <h3 className="font-bold">Pro Features</h3>
+                     {isPro && <span className="text-[10px] bg-yellow-400 text-black px-2 py-0.5 rounded-full font-bold ml-auto">ACTIVE</span>}
                   </div>
                   <p className="text-slate-300 text-sm mb-6">Upgrade to unlock custom domains, white-labeling, and advanced analytics.</p>
                   
@@ -655,9 +668,11 @@ const CreatorSettings: React.FC<CreatorSettingsProps> = ({ profile, onUpdate, on
                         </label>
                         <div className="flex gap-2">
                            <input 
-                             disabled 
+                             disabled={!isPro}
+                             value={profile.customDomain || ''}
+                             onChange={(e) => handleChange('customDomain', e.target.value)}
                              placeholder="podcast.yourdomain.com"
-                             className="bg-slate-800 border-slate-600 rounded px-2 py-1 text-xs w-full text-slate-400 cursor-not-allowed"
+                             className={`bg-slate-800 border-slate-600 rounded px-2 py-1 text-xs w-full text-slate-200 ${!isPro ? 'cursor-not-allowed opacity-60' : 'focus:border-yellow-500'}`}
                            />
                         </div>
                      </div>
@@ -668,16 +683,28 @@ const CreatorSettings: React.FC<CreatorSettingsProps> = ({ profile, onUpdate, on
                         </label>
                         <div className="flex items-center gap-2">
                            <span className="text-[10px] uppercase bg-yellow-400/20 text-yellow-300 px-1.5 rounded">Pro</span>
-                           <div className="w-8 h-4 bg-slate-600 rounded-full relative opacity-50 cursor-not-allowed">
-                              <div className="absolute left-0.5 top-0.5 w-3 h-3 bg-white rounded-full"></div>
-                           </div>
+                           <label className={`relative inline-flex items-center cursor-pointer ${!isPro ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                              <input 
+                                type="checkbox" 
+                                disabled={!isPro}
+                                checked={profile.removeBranding}
+                                onChange={(e) => handleChange('removeBranding', e.target.checked)}
+                                className="sr-only peer" 
+                              />
+                              <div className="w-9 h-5 bg-slate-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-yellow-500"></div>
+                           </label>
                         </div>
                      </div>
 
-                     <Button className="w-full bg-white text-slate-900 hover:bg-slate-200 border-none font-bold">
-                        <CreditCard className="w-4 h-4 mr-2" />
-                        Upgrade to Pro
-                     </Button>
+                     {!isPro && (
+                        <Button 
+                            className="w-full bg-white text-slate-900 hover:bg-slate-200 border-none font-bold"
+                            onClick={handleUpgrade}
+                        >
+                            <CreditCard className="w-4 h-4 mr-2" />
+                            Upgrade to Pro
+                        </Button>
+                     )}
                   </div>
                </div>
            </div>
