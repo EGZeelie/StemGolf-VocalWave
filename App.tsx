@@ -9,6 +9,7 @@ import PublicPage from './pages/PublicPage';
 import BlogEditor from './pages/BlogEditor';
 import AdminDashboard from './pages/AdminDashboard';
 import StreamingDeck from './pages/StreamingDeck';
+import Settings from './pages/Settings';
 import Login from './pages/Login';
 import { AppRoute, PodcastProject, CreatorProfile, BlogPost, Series } from './types';
 import { db } from './services/db';
@@ -407,6 +408,13 @@ const App: React.FC = () => {
           profile={profile} 
           onUpdate={handleUpdateProfile} 
           onNavigate={handleNavigate}
+        />
+      )}
+
+      {currentRoute === AppRoute.SETTINGS && (
+        <Settings 
+          profile={profile}
+          onUpdateProfile={handleUpdateProfile}
         />
       )}
 
