@@ -75,6 +75,12 @@ export interface CustomLink {
 export interface SeoSettings {
   googleAnalyticsId?: string; // G-XXXXXXXXXX
   googleSiteVerification?: string; // Meta tag content
+  facebookPixelId?: string; // FB Pixel ID
+}
+
+export interface Integrations {
+  facebookPageId?: string;
+  facebookPageAccessToken?: string;
 }
 
 export interface CreatorProfile {
@@ -92,6 +98,7 @@ export interface CreatorProfile {
   };
   customLinks: CustomLink[]; // Flexible array for other social/streaming links
   seo?: SeoSettings; // New SEO configurations
+  integrations?: Integrations; // Third-party API keys
   // Visual Customization
   theme: 'classic' | 'minimal' | 'bold';
   font: 'modern' | 'serif';

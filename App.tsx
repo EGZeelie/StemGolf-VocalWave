@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -131,10 +132,6 @@ const App: React.FC = () => {
   useEffect(() => {
     // Check local session
     const session = localStorage.getItem('stemgolf_session');
-    
-    // Initialize Pixel
-    PixelService.init();
-    PixelService.trackPageView();
 
     const loadData = async () => {
       try {
@@ -160,6 +157,18 @@ const App: React.FC = () => {
           if (loadedProfile) {
             setProfile(loadedProfile);
             SEOService.updateTags(loadedProfile.seo);
+            
+            // Initialize Pixel with User ID if available
+            if (loadedProfile.seo?.facebookPixelId) {
+                PixelService.init(loadedProfile.seo.facebookPixelId);
+                PixelService.trackPageView();
+            } else {
+                PixelService.init(); // Default check
+                PixelService.trackPageView();
+            }
+          } else {
+              PixelService.init();
+              PixelService.trackPageView();
           }
         } else {
            // Not authenticated, redirect to login unless viewing public page (logic handled in render)
@@ -201,6 +210,11 @@ const App: React.FC = () => {
     
     setProfile(userProfile);
     SEOService.updateTags(userProfile.seo);
+    
+    if (userProfile.seo?.facebookPixelId) {
+       PixelService.init(userProfile.seo.facebookPixelId);
+    }
+
     localStorage.setItem('stemgolf_session', 'true');
     setIsAuthenticated(true);
     setCurrentRoute(AppRoute.DASHBOARD);
@@ -271,6 +285,10 @@ const App: React.FC = () => {
     await db.users.saveProfile(newProfile);
     setProfile(newProfile);
     SEOService.updateTags(newProfile.seo);
+    // Re-init pixel if ID changed
+    if (newProfile.seo?.facebookPixelId) {
+        PixelService.init(newProfile.seo.facebookPixelId);
+    }
   };
 
   const handleSavePost = async (post: BlogPost) => {

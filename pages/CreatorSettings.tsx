@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
-import { CreatorProfile, AppRoute, CustomLink } from '../types';
+import { CreatorProfile, AppRoute, CustomLink, Integrations } from '../types';
 import Button from '../components/Button';
-import { Globe, ArrowRight, ExternalLink, Lock, CreditCard, Layout, Type, Check, AlertCircle, Plus, Trash2, Youtube, Link as LinkIcon, Search, BarChart3, HelpCircle } from 'lucide-react';
+import { Globe, ArrowRight, ExternalLink, Lock, CreditCard, Layout, Type, Check, AlertCircle, Plus, Trash2, Youtube, Link as LinkIcon, Search, BarChart3, HelpCircle, Facebook } from 'lucide-react';
 
 interface CreatorSettingsProps {
   profile: CreatorProfile;
@@ -42,6 +43,16 @@ const CreatorSettings: React.FC<CreatorSettingsProps> = ({ profile, onUpdate, on
         ...profile,
         seo: {
            ...(profile.seo || {}),
+           [key]: value
+        }
+     });
+  };
+
+  const handleIntegrationChange = (key: keyof NonNullable<CreatorProfile['integrations']>, value: string) => {
+     onUpdate({
+        ...profile,
+        integrations: {
+           ...(profile.integrations || {}),
            [key]: value
         }
      });
@@ -296,6 +307,49 @@ const CreatorSettings: React.FC<CreatorSettingsProps> = ({ profile, onUpdate, on
             </div>
           </div>
 
+          {/* Integrations Section */}
+          <div className="bg-[#181818] rounded-xl shadow-sm border border-[#272727] overflow-hidden">
+             <div className="p-4 border-b border-[#272727]">
+               <h3 className="font-semibold text-white flex items-center gap-2">
+                 <Facebook className="w-4 h-4 text-blue-500" /> Integrations
+               </h3>
+             </div>
+             <div className="p-6 space-y-6">
+                <div className="space-y-4">
+                   <div className="flex justify-between items-center">
+                      <label className="text-sm font-medium text-slate-300">Facebook Page Integration</label>
+                      <ConnectionBadge isConnected={!!profile.integrations?.facebookPageAccessToken} />
+                   </div>
+                   <p className="text-xs text-slate-500">
+                      Enter your Page ID and Access Token (Long-Lived) to automatically post blog articles to your Facebook Page.
+                   </p>
+                   
+                   <div className="grid grid-cols-1 gap-4">
+                      <div>
+                        <label className="text-xs font-medium text-slate-400 mb-1 block">Page ID</label>
+                        <input 
+                            type="text" 
+                            value={profile.integrations?.facebookPageId || ''}
+                            onChange={(e) => handleIntegrationChange('facebookPageId', e.target.value)}
+                            placeholder="e.g. 10001234567890"
+                            className="w-full text-sm bg-[#121212] text-white rounded-md border-[#333] focus:border-blue-500 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-slate-400 mb-1 block">Page Access Token</label>
+                        <input 
+                            type="password" 
+                            value={profile.integrations?.facebookPageAccessToken || ''}
+                            onChange={(e) => handleIntegrationChange('facebookPageAccessToken', e.target.value)}
+                            placeholder="EAA..."
+                            className="w-full text-sm bg-[#121212] text-white rounded-md border-[#333] focus:border-blue-500 focus:ring-blue-500"
+                        />
+                      </div>
+                   </div>
+                </div>
+             </div>
+          </div>
+
           {/* SEO & Analytics Section (NEW) */}
           <div className="bg-[#181818] rounded-xl shadow-sm border border-[#272727] overflow-hidden">
              <div className="p-4 border-b border-[#272727]">
@@ -304,7 +358,30 @@ const CreatorSettings: React.FC<CreatorSettingsProps> = ({ profile, onUpdate, on
                </h3>
              </div>
              <div className="p-6 space-y-6">
+                
+                {/* Facebook Pixel */}
                 <div className="space-y-3">
+                   <div className="flex justify-between items-center">
+                      <label className="text-sm font-medium text-slate-300">Facebook Pixel ID</label>
+                      <ConnectionBadge isConnected={!!profile.seo?.facebookPixelId} />
+                   </div>
+                   <div className="relative">
+                      <input 
+                         type="text" 
+                         value={profile.seo?.facebookPixelId || ''}
+                         onChange={(e) => handleSeoChange('facebookPixelId', e.target.value)}
+                         placeholder="123456789012345"
+                         className="w-full pl-9 text-sm bg-[#121212] text-white rounded-md border-[#333] focus:border-blue-500 focus:ring-blue-500"
+                      />
+                      <Facebook className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+                   </div>
+                   <p className="text-xs text-slate-500 flex items-start gap-1">
+                      <HelpCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                      Tracks page views and events for Meta Ads.
+                   </p>
+                </div>
+
+                <div className="space-y-3 border-t border-[#272727] pt-4">
                    <div className="flex justify-between items-center">
                       <label className="text-sm font-medium text-slate-300">Google Analytics 4 Measurement ID</label>
                       <ConnectionBadge isConnected={!!profile.seo?.googleAnalyticsId} />

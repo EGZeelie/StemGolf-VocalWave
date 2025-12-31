@@ -1,8 +1,10 @@
+
 import React, { useState, useRef } from 'react';
 import { BlogPost, CreatorProfile, PodcastProject } from '../types';
 import Button from '../components/Button';
-import { FileText, Plus, Sparkles, Image as ImageIcon, X, Save, ArrowLeft, Wand2, Calendar, Tag, Trash2, ExternalLink, Link as LinkIcon, Mic, RefreshCw, Layers } from 'lucide-react';
+import { FileText, Plus, Sparkles, Image as ImageIcon, X, Save, ArrowLeft, Wand2, Calendar, Tag, Trash2, ExternalLink, Link as LinkIcon, Mic, RefreshCw, Layers, Facebook, Share2 } from 'lucide-react';
 import { generateBlogContent, generateImage } from '../services/gemini';
+import { FacebookService } from '../services/facebook';
 
 interface BlogEditorProps {
   posts: BlogPost[];
@@ -15,6 +17,7 @@ interface BlogEditorProps {
 const BlogEditor: React.FC<BlogEditorProps> = ({ posts, profile, projects, onSave, onDelete }) => {
   const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [isPostingToFb, setIsPostingToFb] = useState(false);
   
   // AI State
   const [aiSource, setAiSource] = useState<'custom' | 'episode'>('custom');
@@ -81,6 +84,39 @@ const BlogEditor: React.FC<BlogEditorProps> = ({ posts, profile, projects, onSav
     };
     onSave(updated);
     setEditingPost(null);
+  };
+
+  const handlePostToFacebook = async () => {
+    if (!profile.integrations?.facebookPageId || !profile.integrations?.facebookPageAccessToken) {
+        alert("Please configure your Facebook Page integration in Creator Settings first.");
+        return;
+    }
+    
+    if (!editingPost || editingPost.status !== 'published') {
+        alert("Please save and publish the article before sharing.");
+        return;
+    }
+
+    setIsPostingToFb(true);
+    
+    // Construct public link (Mocked for demo)
+    const publicLink = `https://stemgolf.app/p/${profile.slug}/blog/${editingPost.id}`;
+    const message = `${title}\n\n${excerpt}\n\nRead more here:`;
+
+    const result = await FacebookService.postBlogToPage(
+        profile.integrations.facebookPageId,
+        profile.integrations.facebookPageAccessToken,
+        message,
+        publicLink
+    );
+
+    setIsPostingToFb(false);
+
+    if (result.success) {
+        alert("Successfully posted to Facebook Page!");
+    } else {
+        alert(`Failed to post: ${result.error}`);
+    }
   };
 
   const handleGenerateAI = async () => {
@@ -242,6 +278,11 @@ const BlogEditor: React.FC<BlogEditorProps> = ({ posts, profile, projects, onSav
             <span className="text-sm font-medium text-slate-300">{editingPost.status === 'draft' ? 'Draft' : 'Published'}</span>
          </div>
          <div className="flex gap-3">
+            {editingPost.status === 'published' && (
+                <Button variant="ghost" onClick={handlePostToFacebook} isLoading={isPostingToFb} className="text-blue-400 hover:text-blue-300">
+                    <Facebook className="w-4 h-4 mr-2" /> Share to Page
+                </Button>
+            )}
             <Button variant="secondary" onClick={() => setIsAiModalOpen(true)}>
                <Sparkles className="w-4 h-4 mr-2 text-purple-400" /> AI Assist
             </Button>
