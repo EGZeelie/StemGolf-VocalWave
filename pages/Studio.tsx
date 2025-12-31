@@ -1,10 +1,13 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { PodcastProject, GenerationStatus, ProductionSettings, Chapter, DistributionMetadata, CreatorProfile, BlogPost, Series, YoutubeMetadata } from '../types';
 import Button from '../components/Button';
-import { Wand2, Play, Pause, Download, Save, RefreshCw, Volume2, Music, Mic2, Layers, Sliders, Flag, Sparkles, ChevronDown, ChevronUp, Globe, Rss, Calendar, CheckCircle, AlertCircle, Share2, Upload, Image as ImageIcon, FolderOpen, Plus, Copy, Trash2, X, Search, ArrowUpDown, Link, Loader2, XCircle, FileText, ListMusic, Youtube, Video, SidebarClose, SidebarOpen, FileAudio, MoreVertical, Mic, Square, Type, Gauge, MonitorPlay, Users } from 'lucide-react';
+import { Wand2, Play, Pause, Download, Save, RefreshCw, Volume2, Music, Mic2, Layers, Sliders, Flag, Sparkles, ChevronDown, ChevronUp, Globe, Rss, Calendar, CheckCircle, AlertCircle, Share2, Upload, Image as ImageIcon, FolderOpen, Plus, Copy, Trash2, X as CloseIcon, Search, ArrowUpDown, Link, Loader2, XCircle, FileText, ListMusic, Youtube, Video, SidebarClose, SidebarOpen, FileAudio, MoreVertical, Mic, Square, Type, Gauge, MonitorPlay, Users, Twitter, Facebook } from 'lucide-react';
 import { generateAfrikaansScript, synthesizeSpeech, generateImage, generateBlogContent, generateYoutubeMetadata } from '../services/gemini';
 import { mixPodcastAudio, audioBufferToWav } from '../services/audioUtils';
 import { generateRSSFeed, downloadRSS } from '../services/rssUtils';
+import { XService } from '../services/x';
+import { FacebookService } from '../services/facebook';
 
 interface StudioProps {
   initialProject?: PodcastProject | null;
@@ -454,8 +457,71 @@ const Studio: React.FC<StudioProps> = ({
     // Simulate publishing to other platforms
     for (const platform of selectedPlatforms) {
         if (platform === 'youtube') continue; // Already handled
+        if (platform === 'x') continue; 
+        if (platform === 'facebook') continue; // Handled below
         await new Promise(r => setTimeout(r, 1000));
         setPlatformStatusMap(prev => ({ ...prev, [platform]: 'success' }));
+    }
+
+    // Auto-Post to X (Twitter)
+    if (selectedPlatforms.includes('x') && creatorProfile.integrations?.xComAccessToken) {
+        const isScheduled = !!metadata.publishDate;
+        const link = `https://stemgolf.app/p/${creatorProfile.slug}/episode/${projectId.current}`; // Mock link
+        let message = '';
+        if (isScheduled) {
+           const date = new Date(metadata.publishDate!).toLocaleString();
+           message = `📅 Upcoming: New episode "${title}" is scheduled for release on ${date}. Stay tuned! #podcast #afrikaans`;
+        } else {
+           message = `🎙️ Just Released: "${title}" is now live! Listen here: ${link} #podcast #afrikaans`;
+        }
+        
+        try {
+           const result = await XService.postUpdate(creatorProfile.integrations.xComAccessToken, message);
+           if (result.success) {
+               setPlatformStatusMap(prev => ({ ...prev, x: 'success' }));
+           } else {
+               setPlatformStatusMap(prev => ({ ...prev, x: 'error' }));
+           }
+        } catch (e) {
+           console.error("Failed to post to X", e);
+           setPlatformStatusMap(prev => ({ ...prev, x: 'error' }));
+        }
+    } else if (selectedPlatforms.includes('x') && !creatorProfile.integrations?.xComAccessToken) {
+        // User selected X but no token
+        setPlatformStatusMap(prev => ({ ...prev, x: 'error' }));
+    }
+
+    // Auto-Post to Facebook
+    if (selectedPlatforms.includes('facebook') && creatorProfile.integrations?.facebookPageId && creatorProfile.integrations?.facebookPageAccessToken) {
+        const isScheduled = !!metadata.publishDate;
+        const link = `https://stemgolf.app/p/${creatorProfile.slug}/episode/${projectId.current}`; // Mock link
+        let message = '';
+        if (isScheduled) {
+           const date = new Date(metadata.publishDate!).toLocaleString();
+           message = `📅 Upcoming: New episode "${title}" is scheduled for release on ${date}.\n\n${content.slice(0, 100)}... Stay tuned!`;
+        } else {
+           message = `🎙️ Just Released: "${title}" is now live!\n\n${content.slice(0, 100)}...\n\nListen here: ${link}`;
+        }
+        
+        try {
+           const result = await FacebookService.postUpdate(
+               creatorProfile.integrations.facebookPageId,
+               creatorProfile.integrations.facebookPageAccessToken,
+               message,
+               link
+           );
+           if (result.success) {
+               setPlatformStatusMap(prev => ({ ...prev, facebook: 'success' }));
+           } else {
+               setPlatformStatusMap(prev => ({ ...prev, facebook: 'error' }));
+           }
+        } catch (e) {
+           console.error("Failed to post to Facebook", e);
+           setPlatformStatusMap(prev => ({ ...prev, facebook: 'error' }));
+        }
+    } else if (selectedPlatforms.includes('facebook') && (!creatorProfile.integrations?.facebookPageId || !creatorProfile.integrations?.facebookPageAccessToken)) {
+        // User selected FB but no token
+        setPlatformStatusMap(prev => ({ ...prev, facebook: 'error' }));
     }
     
     // Auto Generate Blog Post if enabled
@@ -670,6 +736,20 @@ const Studio: React.FC<StudioProps> = ({
         iconColor: 'bg-red-600 border-red-600',
         isConnected: true // Always allowed for generation demo
     },
+    {
+        id: 'x',
+        name: 'X (Twitter)',
+        color: 'border-slate-600 bg-slate-900/10',
+        iconColor: 'bg-black border-slate-600',
+        isConnected: !!creatorProfile.integrations?.xComAccessToken
+    },
+    {
+        id: 'facebook',
+        name: 'Facebook Page',
+        color: 'border-blue-600 bg-blue-900/10',
+        iconColor: 'bg-blue-600 border-blue-600',
+        isConnected: !!creatorProfile.integrations?.facebookPageAccessToken
+    },
     { 
         id: 'rss', 
         name: 'Direct RSS Feed', 
@@ -707,7 +787,7 @@ const Studio: React.FC<StudioProps> = ({
               <span className="text-xs text-slate-500 font-normal">({projects.length})</span>
            </h3>
            <button onClick={() => setIsProjectListOpen(false)} className="lg:hidden p-1 rounded hover:bg-[#272727] text-slate-400">
-             <X className="w-5 h-5" />
+             <CloseIcon className="w-5 h-5" />
            </button>
          </div>
 

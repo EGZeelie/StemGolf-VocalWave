@@ -4,12 +4,7 @@
  * Used for posting content to Facebook Pages.
  */
 
-export const FacebookService = {
-  /**
-   * Posts a status update (link + message) to a Facebook Page.
-   * Requires 'pages_manage_posts' and 'pages_read_engagement' permissions on the token.
-   */
-  postBlogToPage: async (
+const postToPage = async (
     pageId: string, 
     accessToken: string, 
     message: string, 
@@ -48,5 +43,17 @@ export const FacebookService = {
       console.error("Network Error posting to Facebook:", error);
       return { success: false, error: "Network error occurred." };
     }
-  }
+};
+
+export const FacebookService = {
+  /**
+   * Posts a status update (link + message) to a Facebook Page.
+   * Requires 'pages_manage_posts' and 'pages_read_engagement' permissions on the token.
+   */
+  postBlogToPage: postToPage,
+
+  /**
+   * Generic update poster for Podcasts (releases/scheduling).
+   */
+  postUpdate: postToPage
 };

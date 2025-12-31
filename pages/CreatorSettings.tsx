@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { CreatorProfile, AppRoute, CustomLink, Integrations } from '../types';
 import Button from '../components/Button';
-import { Globe, ArrowRight, ExternalLink, Lock, CreditCard, Layout, Type, Check, AlertCircle, Plus, Trash2, Youtube, Link as LinkIcon, Search, BarChart3, HelpCircle, Facebook } from 'lucide-react';
+import { Globe, ArrowRight, ExternalLink, Lock, CreditCard, Layout, Type, Check, AlertCircle, Plus, Trash2, Youtube, Link as LinkIcon, Search, BarChart3, HelpCircle, Facebook, Twitter } from 'lucide-react';
 
 interface CreatorSettingsProps {
   profile: CreatorProfile;
@@ -311,19 +311,19 @@ const CreatorSettings: React.FC<CreatorSettingsProps> = ({ profile, onUpdate, on
           <div className="bg-[#181818] rounded-xl shadow-sm border border-[#272727] overflow-hidden">
              <div className="p-4 border-b border-[#272727]">
                <h3 className="font-semibold text-white flex items-center gap-2">
-                 <Facebook className="w-4 h-4 text-blue-500" /> Integrations
+                 <Layout className="w-4 h-4 text-orange-600" /> Social Integrations
                </h3>
              </div>
-             <div className="p-6 space-y-6">
+             <div className="p-6 space-y-8">
+                
+                {/* Facebook Integration */}
                 <div className="space-y-4">
                    <div className="flex justify-between items-center">
-                      <label className="text-sm font-medium text-slate-300">Facebook Page Integration</label>
+                      <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
+                        <Facebook className="w-4 h-4 text-blue-500" /> Facebook Page
+                      </label>
                       <ConnectionBadge isConnected={!!profile.integrations?.facebookPageAccessToken} />
                    </div>
-                   <p className="text-xs text-slate-500">
-                      Enter your Page ID and Access Token (Long-Lived) to automatically post blog articles to your Facebook Page.
-                   </p>
-                   
                    <div className="grid grid-cols-1 gap-4">
                       <div>
                         <label className="text-xs font-medium text-slate-400 mb-1 block">Page ID</label>
@@ -347,6 +347,32 @@ const CreatorSettings: React.FC<CreatorSettingsProps> = ({ profile, onUpdate, on
                       </div>
                    </div>
                 </div>
+
+                <div className="h-px bg-[#272727]"></div>
+
+                {/* X (Twitter) Integration */}
+                <div className="space-y-4">
+                   <div className="flex justify-between items-center">
+                      <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
+                        <Twitter className="w-4 h-4 text-sky-500" /> X (Twitter)
+                      </label>
+                      <ConnectionBadge isConnected={!!profile.integrations?.xComAccessToken} />
+                   </div>
+                   <p className="text-xs text-slate-500">
+                      Auto-post updates when new episodes are scheduled or released.
+                   </p>
+                   <div>
+                        <label className="text-xs font-medium text-slate-400 mb-1 block">Access Token</label>
+                        <input 
+                            type="password" 
+                            value={profile.integrations?.xComAccessToken || ''}
+                            onChange={(e) => handleIntegrationChange('xComAccessToken', e.target.value)}
+                            placeholder="Your X/Twitter Bearer or Access Token"
+                            className="w-full text-sm bg-[#121212] text-white rounded-md border-[#333] focus:border-sky-500 focus:ring-sky-500"
+                        />
+                   </div>
+                </div>
+
              </div>
           </div>
 

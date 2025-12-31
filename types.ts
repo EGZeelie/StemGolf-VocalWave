@@ -81,6 +81,7 @@ export interface SeoSettings {
 export interface Integrations {
   facebookPageId?: string;
   facebookPageAccessToken?: string;
+  xComAccessToken?: string; // Token for posting to X
 }
 
 export interface CreatorProfile {
