@@ -149,7 +149,8 @@ export enum AppRoute {
   SETTINGS = 'settings',
   CREATOR_SETTINGS = 'creator_settings',
   PUBLIC_PAGE = 'public_page',
-  ADMIN = 'admin'
+  ADMIN = 'admin',
+  STREAMING_DECK = 'streaming_deck'
 }
 
 // Gemini specific types usually come from the SDK, but we define internal mapped types here

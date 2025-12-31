@@ -30,6 +30,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentRoute, onNavigate, pro
 
   const navItems = [
     { id: AppRoute.DASHBOARD, label: 'Discover / Dashboard', icon: LayoutDashboard },
+    { id: AppRoute.STREAMING_DECK, label: 'Streaming Deck', icon: Radio, badge: 'Live' },
     { id: AppRoute.STUDIO, label: 'Studio (Your Podcasts)', icon: Mic2, badge: 'New' },
     { id: AppRoute.BLOG_EDITOR, label: 'Blog & Articles', icon: FileText, badge: 'AI' },
     { id: AppRoute.ANALYTICS, label: 'Analytics', icon: BarChart3 },
@@ -65,7 +66,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentRoute, onNavigate, pro
                    {item.label}
                 </div>
                 {item.badge && (
-                   <span className={`text-[10px] text-white px-1.5 py-0.5 rounded font-bold ${item.badge === 'AI' ? 'bg-purple-600' : 'bg-blue-600'}`}>
+                   <span className={`text-[10px] text-white px-1.5 py-0.5 rounded font-bold ${item.badge === 'AI' ? 'bg-purple-600' : item.badge === 'Live' ? 'bg-red-600' : 'bg-blue-600'}`}>
                       {item.badge}
                    </span>
                 )}

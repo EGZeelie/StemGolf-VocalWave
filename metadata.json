@@ -1,5 +1,5 @@
 {
-  "name": "StemGolf V0.2 - Afrikaans AI Podcast Studio",
+  "name": "StemGolf V1.01 - Afrikaans AI Podcast Studio",
   "description": "A professional AI-powered platform for creating natural-sounding Afrikaans podcasts and voiceovers using advanced speech synthesis.",
   "requestFramePermissions": [
     "microphone"

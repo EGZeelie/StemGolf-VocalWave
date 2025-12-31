@@ -93,7 +93,7 @@ const loadAudio = async (url: string): Promise<AudioBuffer> => {
 };
 
 // Generates a simple synthesized jingle so we don't rely on external assets
-const generateJingle = (type: 'news' | 'story' | 'upbeat', ctx: BaseAudioContext): AudioBuffer => {
+export const generateJingle = (type: 'news' | 'story' | 'upbeat', ctx: BaseAudioContext): AudioBuffer => {
   const duration = 8; // Increased duration for better transitions (was 4)
   const buffer = ctx.createBuffer(2, ctx.sampleRate * duration, ctx.sampleRate);
   const left = buffer.getChannelData(0);

@@ -8,6 +8,7 @@ import CreatorSettings from './pages/CreatorSettings';
 import PublicPage from './pages/PublicPage';
 import BlogEditor from './pages/BlogEditor';
 import AdminDashboard from './pages/AdminDashboard';
+import StreamingDeck from './pages/StreamingDeck';
 import Login from './pages/Login';
 import { AppRoute, PodcastProject, CreatorProfile, BlogPost, Series } from './types';
 import { db } from './services/db';
@@ -416,6 +417,10 @@ const App: React.FC = () => {
           posts={blogPosts}
           onNavigate={handleNavigate}
         />
+      )}
+
+      {currentRoute === AppRoute.STREAMING_DECK && (
+          <StreamingDeck />
       )}
 
       {currentRoute === AppRoute.ADMIN && profile.role === 'admin' && (
