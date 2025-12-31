@@ -115,6 +115,8 @@ export interface CreatorProfile {
   plan: 'free' | 'pro'; // Subscription status
   customDomain?: string;
   removeBranding: boolean;
+  // Access Control
+  role: 'user' | 'admin';
 }
 
 export interface BlogPost {
@@ -146,7 +148,8 @@ export enum AppRoute {
   ANALYTICS = 'analytics',
   SETTINGS = 'settings',
   CREATOR_SETTINGS = 'creator_settings',
-  PUBLIC_PAGE = 'public_page'
+  PUBLIC_PAGE = 'public_page',
+  ADMIN = 'admin'
 }
 
 // Gemini specific types usually come from the SDK, but we define internal mapped types here

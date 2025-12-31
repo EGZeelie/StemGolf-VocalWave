@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { Mic2, LayoutDashboard, Settings, Menu, X, Globe, BarChart3, Search, User, Zap, Radio, HelpCircle, FileText, LogOut } from 'lucide-react';
+import { Mic2, LayoutDashboard, Settings, Menu, X, Globe, BarChart3, Search, User, Zap, Radio, HelpCircle, FileText, LogOut, ShieldAlert } from 'lucide-react';
 import { AppRoute, CreatorProfile } from '../types';
 
 interface LayoutProps {
@@ -16,6 +17,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentRoute, onNavigate, pro
   // Simple name fallback
   const displayName = profile?.name || 'Guest User';
   const displayInitials = displayName.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
+  const isAdmin = profile?.role === 'admin';
 
   // If we are on the public page, render a simplified layout
   if (currentRoute === AppRoute.PUBLIC_PAGE) {
@@ -92,6 +94,15 @@ const Layout: React.FC<LayoutProps> = ({ children, currentRoute, onNavigate, pro
                 <Settings className="w-4 h-4 text-slate-500" />
                 Settings
              </button>
+             {isAdmin && (
+                 <button 
+                    onClick={() => onNavigate(AppRoute.ADMIN)}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-900/10 border-l-2 border-transparent ${currentRoute === AppRoute.ADMIN ? 'border-red-500 bg-red-900/10 text-red-300' : ''}`}
+                 >
+                    <ShieldAlert className="w-4 h-4" />
+                    Admin Panel
+                 </button>
+             )}
              <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-white hover:bg-[#181818] border-l-2 border-transparent">
                 <HelpCircle className="w-4 h-4 text-slate-500" />
                 Help & Support
@@ -108,7 +119,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentRoute, onNavigate, pro
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-medium text-white truncate">{displayName}</p>
-                <p className="text-xs text-slate-500 truncate">Pro Plan</p>
+                <p className="text-xs text-slate-500 truncate">{isAdmin ? 'Administrator' : 'Pro Plan'}</p>
               </div>
             </div>
             {onLogout && (
@@ -179,6 +190,18 @@ const Layout: React.FC<LayoutProps> = ({ children, currentRoute, onNavigate, pro
                     {item.label}
                   </button>
                 ))}
+                {isAdmin && (
+                    <button
+                        onClick={() => {
+                            onNavigate(AppRoute.ADMIN);
+                            setIsMobileMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-4 text-base font-medium rounded-lg border bg-red-900/10 border-red-900 text-red-400 mt-2"
+                    >
+                        <ShieldAlert className="w-5 h-5" />
+                        Admin Panel
+                    </button>
+                )}
                 {onLogout && (
                    <button
                     onClick={() => {

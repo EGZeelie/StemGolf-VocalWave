@@ -7,6 +7,7 @@ import Analytics from './pages/Analytics';
 import CreatorSettings from './pages/CreatorSettings';
 import PublicPage from './pages/PublicPage';
 import BlogEditor from './pages/BlogEditor';
+import AdminDashboard from './pages/AdminDashboard';
 import Login from './pages/Login';
 import { AppRoute, PodcastProject, CreatorProfile, BlogPost, Series } from './types';
 import { db } from './services/db';
@@ -112,7 +113,8 @@ const DEFAULT_PROFILE: CreatorProfile = {
   theme: 'classic',
   font: 'modern',
   plan: 'free',
-  removeBranding: false
+  removeBranding: false,
+  role: 'user'
 };
 
 const App: React.FC = () => {
@@ -156,7 +158,7 @@ const App: React.FC = () => {
         if (session) {
           setIsAuthenticated(true);
           if (loadedProfile) {
-            // Merge loaded profile with default to ensure all fields exist (e.g. plan)
+            // Merge loaded profile with default to ensure all fields exist (e.g. plan, role)
             const mergedProfile = { ...DEFAULT_PROFILE, ...loadedProfile };
             setProfile(mergedProfile);
             SEOService.updateTags(mergedProfile.seo);
@@ -187,7 +189,7 @@ const App: React.FC = () => {
     loadData();
   }, []);
 
-  const handleLogin = async (method: 'google' | 'email') => {
+  const handleLogin = async (method: 'google' | 'email', email?: string) => {
     setIsAuthLoading(true);
     // Simulate network delay
     await new Promise(r => setTimeout(r, 1500));
@@ -195,13 +197,20 @@ const App: React.FC = () => {
     // Create/Ensure profile exists
     let userProfile = await db.users.getProfile();
     
+    // Check for Admin credentials (mocked)
+    const isAdmin = email === 'admin@stemgolf.app';
+
     if (!userProfile) {
       // Seed default profile on first login (Sign Up flow)
-      userProfile = DEFAULT_PROFILE;
+      userProfile = {
+          ...DEFAULT_PROFILE,
+          role: isAdmin ? 'admin' : 'user',
+          name: isAdmin ? 'System Admin' : DEFAULT_PROFILE.name
+      };
       await db.users.saveProfile(userProfile);
       
       // Also seed mock projects/blogs if empty
-      if (projects.length === 0) {
+      if (projects.length === 0 && !isAdmin) {
           await Promise.all([
              ...MOCK_PROJECTS.map(p => db.projects.save(p)),
              ...MOCK_BLOGS.map(b => db.content.save(b))
@@ -209,6 +218,12 @@ const App: React.FC = () => {
           setProjects(MOCK_PROJECTS);
           setBlogPosts(MOCK_BLOGS);
       }
+    } else {
+        // If profile exists, ensure role is correct based on login
+        if (isAdmin && userProfile.role !== 'admin') {
+            userProfile.role = 'admin';
+            await db.users.saveProfile(userProfile);
+        }
     }
     
     // Merge defaults on login as well
@@ -223,7 +238,14 @@ const App: React.FC = () => {
 
     localStorage.setItem('stemgolf_session', 'true');
     setIsAuthenticated(true);
-    setCurrentRoute(AppRoute.DASHBOARD);
+    
+    // Redirect based on Role
+    if (isAdmin) {
+        setCurrentRoute(AppRoute.ADMIN);
+    } else {
+        setCurrentRoute(AppRoute.DASHBOARD);
+    }
+    
     setIsAuthLoading(false);
   };
 
@@ -238,6 +260,12 @@ const App: React.FC = () => {
        setCurrentRoute(AppRoute.LOGIN);
        return;
     }
+    // Simple RBAC check
+    if (route === AppRoute.ADMIN && profile.role !== 'admin') {
+        alert("Access Denied: Admins only.");
+        return;
+    }
+
     setCurrentRoute(route);
     PixelService.trackPageView(); // Track route changes as PageViews
     if (route !== AppRoute.STUDIO) {
@@ -388,6 +416,10 @@ const App: React.FC = () => {
           posts={blogPosts}
           onNavigate={handleNavigate}
         />
+      )}
+
+      {currentRoute === AppRoute.ADMIN && profile.role === 'admin' && (
+          <AdminDashboard />
       )}
     </Layout>
   );
