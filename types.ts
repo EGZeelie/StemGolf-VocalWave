@@ -84,6 +84,13 @@ export interface Integrations {
   xComAccessToken?: string; // Token for posting to X
 }
 
+export interface HostProfile {
+  id: string;
+  name: string;
+  bio: string;
+  imageUrl?: string;
+}
+
 export interface CreatorProfile {
   name: string;
   slug: string;
@@ -98,6 +105,7 @@ export interface CreatorProfile {
     youtube?: string;
   };
   customLinks: CustomLink[]; // Flexible array for other social/streaming links
+  hosts?: HostProfile[]; // New Host Profiles
   seo?: SeoSettings; // New SEO configurations
   integrations?: Integrations; // Third-party API keys
   // Visual Customization

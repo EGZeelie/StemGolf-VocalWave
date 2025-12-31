@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { CreatorProfile, PodcastProject, AppRoute, BlogPost } from '../types';
 import { Play, Pause, ArrowLeft, Headphones, Mail, ArrowRight, Instagram, Twitter, Facebook, Linkedin, Circle, Calendar, User, Clock, Search, Home, Info, Mic, FileText, Phone, AlertTriangle, X, Menu, Share2, Volume2, SkipBack, SkipForward, Youtube, Link as LinkIcon, ExternalLink } from 'lucide-react';
@@ -407,49 +408,76 @@ const PublicPage: React.FC<PublicPageProps> = ({ profile, projects, posts, onNav
 
   const renderAbout = () => (
     <section className="py-24 relative min-h-screen animate-in fade-in duration-500">
-      <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-        <div className="relative order-2 lg:order-1">
-           <div className="inline-block px-4 py-1 rounded-full bg-[var(--accent)]/20 text-[var(--accent)] border border-[var(--accent)]/30 text-xs font-bold uppercase tracking-wider mb-6">
-              Our Story
-           </div>
-           <h1 className="text-5xl md:text-7xl font-bold mb-8 leading-tight">About <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--accent)] to-white">{profile.name}</span></h1>
-           <p className="text-xl text-slate-300 mb-8 leading-relaxed">
-              We are bridging the gap between traditional storytelling and modern technology, creating a platform where every voice can be heard.
-           </p>
-           <div className="space-y-6 text-slate-400 leading-relaxed mb-10">
-              <p>
-                 {profile.name} started with a simple mission: to make Afrikaans audio content accessible, high-quality, and engaging for everyone. Using state-of-the-art AI, we bring stories to life with unprecedented speed and quality.
-              </p>
-              <p>
-                 {profile.bio}
-              </p>
-           </div>
-           
-           <div className="grid grid-cols-2 gap-8 border-t border-white/10 pt-8">
-              <div>
-                 <div className="text-4xl font-bold text-white mb-2">12k+</div>
-                 <div className="text-sm font-medium text-slate-500 uppercase tracking-wide">Monthly Listeners</div>
-              </div>
-              <div>
-                 <div className="text-4xl font-bold text-white mb-2">150+</div>
-                 <div className="text-sm font-medium text-slate-500 uppercase tracking-wide">Episodes Produced</div>
-              </div>
-           </div>
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center mb-24">
+            <div className="relative order-2 lg:order-1">
+            <div className="inline-block px-4 py-1 rounded-full bg-[var(--accent)]/20 text-[var(--accent)] border border-[var(--accent)]/30 text-xs font-bold uppercase tracking-wider mb-6">
+                Our Story
+            </div>
+            <h1 className="text-5xl md:text-7xl font-bold mb-8 leading-tight">About <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--accent)] to-white">{profile.name}</span></h1>
+            <p className="text-xl text-slate-300 mb-8 leading-relaxed">
+                We are bridging the gap between traditional storytelling and modern technology, creating a platform where every voice can be heard.
+            </p>
+            <div className="space-y-6 text-slate-400 leading-relaxed mb-10">
+                <p>
+                    {profile.name} started with a simple mission: to make Afrikaans audio content accessible, high-quality, and engaging for everyone. Using state-of-the-art AI, we bring stories to life with unprecedented speed and quality.
+                </p>
+                <p>
+                    {profile.bio}
+                </p>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-8 border-t border-white/10 pt-8">
+                <div>
+                    <div className="text-4xl font-bold text-white mb-2">12k+</div>
+                    <div className="text-sm font-medium text-slate-500 uppercase tracking-wide">Monthly Listeners</div>
+                </div>
+                <div>
+                    <div className="text-4xl font-bold text-white mb-2">150+</div>
+                    <div className="text-sm font-medium text-slate-500 uppercase tracking-wide">Episodes Produced</div>
+                </div>
+            </div>
+            </div>
+            
+            <div className="relative h-[600px] w-full order-1 lg:order-2">
+            <div className="absolute top-0 right-0 w-4/5 h-full bg-[#111] rounded-3xl border border-white/10 overflow-hidden z-10 shadow-2xl rotate-3">
+                <img src={profile.coverImage || "https://images.unsplash.com/photo-1519638831568-d9897f54ed69?q=80&w=1000&auto=format&fit=crop"} className="w-full h-full object-cover opacity-90" />
+            </div>
+            <div className="absolute bottom-20 left-0 w-3/5 bg-black/80 backdrop-blur-xl rounded-2xl border border-white/10 z-20 p-8 shadow-2xl -rotate-3">
+                <div className="text-5xl font-bold text-[var(--accent)] mb-4 font-serif">"</div>
+                <p className="text-white font-medium text-lg italic mb-6 leading-relaxed">Voice is the most powerful medium for human connection. We're just making it louder.</p>
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center font-bold">{profile.name.charAt(0)}</div>
+                    <div className="text-sm text-slate-400 font-bold">{profile.name}<br/><span className="font-normal text-xs text-slate-500">Creator</span></div>
+                </div>
+            </div>
+            </div>
         </div>
-        
-        <div className="relative h-[600px] w-full order-1 lg:order-2">
-           <div className="absolute top-0 right-0 w-4/5 h-full bg-[#111] rounded-3xl border border-white/10 overflow-hidden z-10 shadow-2xl rotate-3">
-              <img src={profile.coverImage || "https://images.unsplash.com/photo-1519638831568-d9897f54ed69?q=80&w=1000&auto=format&fit=crop"} className="w-full h-full object-cover opacity-90" />
-           </div>
-           <div className="absolute bottom-20 left-0 w-3/5 bg-black/80 backdrop-blur-xl rounded-2xl border border-white/10 z-20 p-8 shadow-2xl -rotate-3">
-              <div className="text-5xl font-bold text-[var(--accent)] mb-4 font-serif">"</div>
-              <p className="text-white font-medium text-lg italic mb-6 leading-relaxed">Voice is the most powerful medium for human connection. We're just making it louder.</p>
-              <div className="flex items-center gap-3">
-                 <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center font-bold">{profile.name.charAt(0)}</div>
-                 <div className="text-sm text-slate-400 font-bold">{profile.name}<br/><span className="font-normal text-xs text-slate-500">Creator</span></div>
-              </div>
-           </div>
-        </div>
+
+        {/* Meet the Hosts Section */}
+        {profile.hosts && profile.hosts.length > 0 && (
+            <div className="border-t border-white/10 pt-24">
+                <div className="text-center max-w-3xl mx-auto mb-16">
+                    <h2 className="text-4xl font-bold mb-4">Meet the Hosts</h2>
+                    <p className="text-slate-400">The voices behind the microphone.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {profile.hosts.map(host => (
+                        <div key={host.id} className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-[var(--accent)]/30 transition-all flex flex-col items-center text-center">
+                            <div className="w-24 h-24 rounded-full bg-[#222] mb-6 overflow-hidden border-2 border-white/10 shadow-lg">
+                                {host.imageUrl ? (
+                                    <img src={host.imageUrl} alt={host.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-slate-500"><User className="w-10 h-10" /></div>
+                                )}
+                            </div>
+                            <h3 className="text-xl font-bold text-white mb-3">{host.name}</h3>
+                            <p className="text-sm text-slate-400 leading-relaxed">{host.bio}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
       </div>
     </section>
   );

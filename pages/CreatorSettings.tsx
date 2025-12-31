@@ -1,8 +1,8 @@
 
-import React, { useState } from 'react';
-import { CreatorProfile, AppRoute, CustomLink, Integrations } from '../types';
+import React, { useState, useRef } from 'react';
+import { CreatorProfile, AppRoute, CustomLink, Integrations, HostProfile } from '../types';
 import Button from '../components/Button';
-import { Globe, ArrowRight, ExternalLink, Lock, CreditCard, Layout, Type, Check, AlertCircle, Plus, Trash2, Youtube, Link as LinkIcon, Search, BarChart3, HelpCircle, Facebook, Twitter } from 'lucide-react';
+import { Globe, ArrowRight, ExternalLink, Lock, CreditCard, Layout, Type, Check, AlertCircle, Plus, Trash2, Youtube, Link as LinkIcon, Search, BarChart3, HelpCircle, Facebook, Twitter, Users, Upload, User } from 'lucide-react';
 
 interface CreatorSettingsProps {
   profile: CreatorProfile;
@@ -26,6 +26,12 @@ const THEMES = [
 
 const CreatorSettings: React.FC<CreatorSettingsProps> = ({ profile, onUpdate, onNavigate }) => {
   const [newLink, setNewLink] = useState({ label: '', url: '' });
+  
+  // Host Form State
+  const [hostName, setHostName] = useState('');
+  const [hostBio, setHostBio] = useState('');
+  const [hostImage, setHostImage] = useState('');
+  const hostImageRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (field: keyof CreatorProfile, value: any) => {
     onUpdate({ ...profile, [field]: value });
@@ -77,6 +83,46 @@ const CreatorSettings: React.FC<CreatorSettingsProps> = ({ profile, onUpdate, on
       ...profile,
       customLinks: (profile.customLinks || []).filter(l => l.id !== id)
     });
+  };
+
+  // Host Management Functions
+  const handleHostImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setHostImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleAddHost = () => {
+    if (!hostName.trim() || !hostBio.trim()) return;
+    
+    const newHost: HostProfile = {
+        id: `host_${Date.now()}`,
+        name: hostName,
+        bio: hostBio,
+        imageUrl: hostImage
+    };
+
+    onUpdate({
+        ...profile,
+        hosts: [...(profile.hosts || []), newHost]
+    });
+
+    // Reset Form
+    setHostName('');
+    setHostBio('');
+    setHostImage('');
+  };
+
+  const handleDeleteHost = (id: string) => {
+      onUpdate({
+          ...profile,
+          hosts: (profile.hosts || []).filter(h => h.id !== id)
+      });
   };
 
   const ConnectionBadge = ({ isConnected }: { isConnected: boolean }) => (
@@ -305,6 +351,88 @@ const CreatorSettings: React.FC<CreatorSettingsProps> = ({ profile, onUpdate, on
             <div className="bg-[#1f1f1f] px-6 py-4 flex justify-end border-t border-[#272727]">
               <Button onClick={() => alert("Profile Saved!")}>Save Changes</Button>
             </div>
+          </div>
+
+          {/* Host Profiles Section */}
+          <div className="bg-[#181818] rounded-xl shadow-sm border border-[#272727] overflow-hidden">
+             <div className="p-4 border-b border-[#272727]">
+               <h3 className="font-semibold text-white flex items-center gap-2">
+                 <Users className="w-4 h-4 text-orange-600" /> Podcast Hosts
+               </h3>
+             </div>
+             <div className="p-6 space-y-6">
+                
+                {/* Existing Hosts */}
+                {(profile.hosts || []).length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {profile.hosts?.map(host => (
+                            <div key={host.id} className="bg-[#1f1f1f] border border-[#272727] rounded-lg p-3 flex items-start gap-3 relative group">
+                                <div className="w-12 h-12 rounded-full bg-[#333] overflow-hidden flex-shrink-0">
+                                    {host.imageUrl ? (
+                                        <img src={host.imageUrl} alt={host.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-slate-500"><User className="w-6 h-6"/></div>
+                                    )}
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-white text-sm">{host.name}</h4>
+                                    <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{host.bio}</p>
+                                </div>
+                                <button 
+                                    onClick={() => handleDeleteHost(host.id)}
+                                    className="absolute top-2 right-2 p-1.5 rounded-md text-slate-500 hover:text-red-400 hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transition-all"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Add Host Form */}
+                <div className="bg-[#1f1f1f] p-4 rounded-lg border border-[#272727] border-dashed">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Add New Host</h4>
+                    <div className="flex gap-4 items-start">
+                        <div className="space-y-2">
+                            <div 
+                                onClick={() => hostImageRef.current?.click()}
+                                className="w-16 h-16 rounded-full bg-[#121212] border border-[#333] flex items-center justify-center cursor-pointer hover:border-orange-500 transition-colors overflow-hidden"
+                            >
+                                {hostImage ? (
+                                    <img src={hostImage} className="w-full h-full object-cover" />
+                                ) : (
+                                    <Upload className="w-5 h-5 text-slate-500" />
+                                )}
+                            </div>
+                            <input ref={hostImageRef} type="file" className="hidden" accept="image/*" onChange={handleHostImageUpload} />
+                            <div className="text-[9px] text-center text-slate-500">Click to<br/>upload</div>
+                        </div>
+                        <div className="flex-1 space-y-3">
+                            <input 
+                                type="text" 
+                                placeholder="Host Name" 
+                                value={hostName}
+                                onChange={(e) => setHostName(e.target.value)}
+                                className="w-full bg-[#121212] border border-[#333] rounded px-3 py-2 text-sm text-white focus:border-orange-500"
+                            />
+                            <textarea 
+                                rows={2}
+                                placeholder="Short Bio (max 150 chars)"
+                                maxLength={150}
+                                value={hostBio}
+                                onChange={(e) => setHostBio(e.target.value)}
+                                className="w-full bg-[#121212] border border-[#333] rounded px-3 py-2 text-sm text-white focus:border-orange-500 resize-none"
+                            />
+                            <div className="flex justify-end">
+                                <Button size="sm" onClick={handleAddHost} disabled={!hostName || !hostBio}>
+                                    <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Host
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+             </div>
           </div>
 
           {/* Integrations Section */}
