@@ -286,7 +286,7 @@ const Studio: React.FC<StudioProps> = ({
 
   useEffect(() => {
     if (status === 'ready' && rawVoiceBuffer) {
-      const timer = setTimeout(() => {
+      const timer = window.setTimeout(() => {
         performMix(rawVoiceBuffer);
       }, 500);
       return () => clearTimeout(timer);
@@ -651,7 +651,7 @@ const Studio: React.FC<StudioProps> = ({
       setRecordingTime(0);
       setIsPrompterPlaying(true); // Auto-start prompter
 
-      recordingTimerRef.current = setInterval(() => {
+      recordingTimerRef.current = window.setInterval(() => {
         setRecordingTime(t => t + 1);
       }, 1000);
 
@@ -694,7 +694,7 @@ const Studio: React.FC<StudioProps> = ({
   // Teleprompter Loop
   useEffect(() => {
     if (isPrompterPlaying && prompterRef.current) {
-        scrollIntervalRef.current = setInterval(() => {
+        scrollIntervalRef.current = window.setInterval(() => {
              if (prompterRef.current) {
                  prompterRef.current.scrollTop += prompterSpeed;
              }
@@ -746,7 +746,7 @@ const Studio: React.FC<StudioProps> = ({
     {
         id: 'facebook',
         name: 'Facebook Page',
-        color: 'border-blue-600 bg-blue-900/10',
+        color: 'border-blue-600 bg-blue-900/10', 
         iconColor: 'bg-blue-600 border-blue-600',
         isConnected: !!creatorProfile.integrations?.facebookPageAccessToken
     },

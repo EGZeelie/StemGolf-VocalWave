@@ -1,6 +1,7 @@
+
 import React, { useEffect, useState } from 'react';
 import { PodcastProject, AppRoute } from '../types';
-import { Plus, Mic, PlayCircle, Clock, ExternalLink, Play, TrendingUp, ArrowUpRight, Search, RefreshCw } from 'lucide-react';
+import { Plus, Mic, PlayCircle, Clock, ExternalLink, Play, TrendingUp, ArrowUpRight, Search, RefreshCw, ChevronDown } from 'lucide-react';
 import Button from '../components/Button';
 
 interface DashboardProps {
@@ -27,6 +28,7 @@ const MOCK_TRENDS: Trend[] = [
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onEditProject, projects }) => {
   const [trends, setTrends] = useState<Trend[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [trendRange, setTrendRange] = useState('1d');
 
   useEffect(() => {
     // Simulate fetching trends
@@ -42,6 +44,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onEditProject, projec
         setTrends(shuffled);
         setIsRefreshing(false);
     }, 800);
+  };
+
+  const handleRangeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      setTrendRange(e.target.value);
+      handleRefreshTrends();
   };
 
   const handleUseTrend = (trend: Trend) => {
@@ -205,7 +212,19 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onEditProject, projec
                         <TrendingUp className="w-4 h-4 text-blue-500" /> Google Trends
                     </h3>
                     <div className="flex items-center gap-2">
-                        <span className="text-[10px] bg-[#121212] border border-[#333] text-slate-400 px-2 py-0.5 rounded">ZA • Daily</span>
+                        <div className="relative">
+                            <select 
+                                value={trendRange}
+                                onChange={handleRangeChange}
+                                className="appearance-none bg-[#121212] border border-[#333] text-[10px] text-slate-400 pl-2 pr-6 py-1 rounded focus:border-blue-500 focus:outline-none cursor-pointer hover:border-slate-500 transition-colors"
+                            >
+                                <option value="1d">ZA • 1 Day</option>
+                                <option value="3d">ZA • 3 Days</option>
+                                <option value="7d">ZA • Week</option>
+                                <option value="30d">ZA • Month</option>
+                            </select>
+                            <ChevronDown className="w-3 h-3 text-slate-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        </div>
                         <button 
                             onClick={handleRefreshTrends} 
                             className={`p-1 hover:bg-[#333] rounded text-slate-400 hover:text-white transition-colors ${isRefreshing ? 'animate-spin' : ''}`}
@@ -223,7 +242,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onEditProject, projec
                         </div>
                     ) : (
                         <>
-                            <p className="text-xs text-slate-500 mb-4">Trending searches in South Africa today. Click to create an episode.</p>
+                            <p className="text-xs text-slate-500 mb-4">Trending searches in South Africa for the last {trendRange === '1d' ? '24 hours' : trendRange === '3d' ? '3 days' : trendRange === '7d' ? '7 days' : '30 days'}. Click to create an episode.</p>
                             <div className="space-y-3">
                                 {trends.map((trend, i) => (
                                     <div key={i} className="group flex items-center justify-between p-2 rounded-lg hover:bg-[#222] transition-colors border border-transparent hover:border-[#333]">
