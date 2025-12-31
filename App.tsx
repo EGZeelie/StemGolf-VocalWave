@@ -156,12 +156,14 @@ const App: React.FC = () => {
         if (session) {
           setIsAuthenticated(true);
           if (loadedProfile) {
-            setProfile(loadedProfile);
-            SEOService.updateTags(loadedProfile.seo);
+            // Merge loaded profile with default to ensure all fields exist (e.g. plan)
+            const mergedProfile = { ...DEFAULT_PROFILE, ...loadedProfile };
+            setProfile(mergedProfile);
+            SEOService.updateTags(mergedProfile.seo);
             
             // Initialize Pixel with User ID if available
-            if (loadedProfile.seo?.facebookPixelId) {
-                PixelService.init(loadedProfile.seo.facebookPixelId);
+            if (mergedProfile.seo?.facebookPixelId) {
+                PixelService.init(mergedProfile.seo.facebookPixelId);
                 PixelService.trackPageView();
             } else {
                 PixelService.init(); // Default check
@@ -209,11 +211,14 @@ const App: React.FC = () => {
       }
     }
     
-    setProfile(userProfile);
-    SEOService.updateTags(userProfile.seo);
+    // Merge defaults on login as well
+    const mergedProfile = { ...DEFAULT_PROFILE, ...userProfile };
     
-    if (userProfile.seo?.facebookPixelId) {
-       PixelService.init(userProfile.seo.facebookPixelId);
+    setProfile(mergedProfile);
+    SEOService.updateTags(mergedProfile.seo);
+    
+    if (mergedProfile.seo?.facebookPixelId) {
+       PixelService.init(mergedProfile.seo.facebookPixelId);
     }
 
     localStorage.setItem('stemgolf_session', 'true');

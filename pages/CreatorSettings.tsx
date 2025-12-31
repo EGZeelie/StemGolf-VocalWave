@@ -32,6 +32,9 @@ const CreatorSettings: React.FC<CreatorSettingsProps> = ({ profile, onUpdate, on
   const [hostBio, setHostBio] = useState('');
   const [hostImage, setHostImage] = useState('');
   const hostImageRef = useRef<HTMLInputElement>(null);
+  
+  // Upgrade State
+  const [isUpgrading, setIsUpgrading] = useState(false);
 
   const isPro = profile.plan === 'pro';
 
@@ -129,11 +132,13 @@ const CreatorSettings: React.FC<CreatorSettingsProps> = ({ profile, onUpdate, on
 
   const handleUpgrade = () => {
       if (confirm("Confirm upgrade to Pro Plan ($19/mo)?\n\nThis will unlock custom domains and white-labeling.")) {
-          // Simulate successful payment
+          setIsUpgrading(true);
+          // Simulate successful payment processing delay
           setTimeout(() => {
               onUpdate({ ...profile, plan: 'pro' });
+              setIsUpgrading(false);
               alert("Upgrade Successful! Welcome to Pro.");
-          }, 1000);
+          }, 1500);
       }
   };
 
@@ -687,7 +692,7 @@ const CreatorSettings: React.FC<CreatorSettingsProps> = ({ profile, onUpdate, on
                               <input 
                                 type="checkbox" 
                                 disabled={!isPro}
-                                checked={profile.removeBranding}
+                                checked={!!profile.removeBranding}
                                 onChange={(e) => handleChange('removeBranding', e.target.checked)}
                                 className="sr-only peer" 
                               />
@@ -700,6 +705,7 @@ const CreatorSettings: React.FC<CreatorSettingsProps> = ({ profile, onUpdate, on
                         <Button 
                             className="w-full bg-white text-slate-900 hover:bg-slate-200 border-none font-bold"
                             onClick={handleUpgrade}
+                            isLoading={isUpgrading}
                         >
                             <CreditCard className="w-4 h-4 mr-2" />
                             Upgrade to Pro
