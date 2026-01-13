@@ -1,6 +1,4 @@
 
-import { EqualizerSettings } from "../types";
-
 // Utility to convert raw PCM data to a WAV Blob for playback/download
 export const pcmToWav = (
   pcmData: Float32Array | Uint8Array,
@@ -94,25 +92,8 @@ const loadAudio = async (url: string): Promise<AudioBuffer> => {
   return await ctx.decodeAudioData(arrayBuffer);
 };
 
-// Procedural Impulse Response for Reverb (Simulates a room)
-const generateImpulseResponse = (ctx: BaseAudioContext, duration: number, decay: number) => {
-  const length = ctx.sampleRate * duration;
-  const impulse = ctx.createBuffer(2, length, ctx.sampleRate);
-  const left = impulse.getChannelData(0);
-  const right = impulse.getChannelData(1);
-
-  for (let i = 0; i < length; i++) {
-    // Exponential decay noise
-    const n = i / length;
-    const val = (Math.random() * 2 - 1) * Math.pow(1 - n, decay);
-    left[i] = val;
-    right[i] = val;
-  }
-  return impulse;
-};
-
 // Generates a simple synthesized jingle so we don't rely on external assets
-export const generateJingle = (type: 'news' | 'story' | 'upbeat', ctx: BaseAudioContext): AudioBuffer => {
+const generateJingle = (type: 'news' | 'story' | 'upbeat', ctx: BaseAudioContext): AudioBuffer => {
   const duration = 8; // Increased duration for better transitions (was 4)
   const buffer = ctx.createBuffer(2, ctx.sampleRate * duration, ctx.sampleRate);
   const left = buffer.getChannelData(0);
@@ -160,54 +141,43 @@ export const mixPodcastAudio = async (
   speed: number = 1.0,
   introVolume: number = 0.5,
   outroVolume: number = 0.5,
-  voiceVolume: number = 1.0,
-  // New Params
-  backgroundUrl: string | undefined = undefined,
-  backgroundVolume: number = 0.1,
-  eqSettings: EqualizerSettings = { low: 0, mid: 0, high: 0 },
-  useCompression: boolean = false,
-  reverbType: 'none' | 'studio' | 'room' | 'hall' = 'none'
+  voiceVolume: number = 1.0
 ): Promise<AudioBuffer> => {
   const sampleRate = 24000;
   
   // 1. Prepare buffers
   let intro: AudioBuffer | null = null;
   let outro: AudioBuffer | null = null;
-  let background: AudioBuffer | null = null;
 
   // Use a temporary context to generate/decode jingles if needed
   const tempCtx = new OfflineAudioContext(1, 1, sampleRate);
 
   try {
-    const promises = [];
     if (introType === 'custom' && customIntroUrl) {
-        promises.push(loadAudio(customIntroUrl).then(b => intro = b));
+        intro = await loadAudio(customIntroUrl);
     } else if (introType !== 'none' && introType !== 'custom') {
         intro = generateJingle(introType as 'news'|'story'|'upbeat', tempCtx);
     }
 
     if (outroType === 'custom' && customOutroUrl) {
-        promises.push(loadAudio(customOutroUrl).then(b => outro = b));
+        outro = await loadAudio(customOutroUrl);
     } else if (outroType !== 'none' && outroType !== 'custom') {
         outro = generateJingle(outroType as 'news'|'story'|'upbeat', tempCtx);
     }
-
-    if (backgroundUrl) {
-        promises.push(loadAudio(backgroundUrl).then(b => background = b));
-    }
-
-    await Promise.all(promises);
-
   } catch (err) {
       console.warn("Error loading custom audio", err);
   }
 
-  // 2. Calculate Timelines
+  // 2. Calculate Timelines & Overlaps
   const introDuration = intro ? intro.duration : 0;
   const voiceRealDuration = voiceBuffer.duration / speed;
   const outroDuration = outro ? outro.duration : 0;
 
+  // We want the intro music to duck under the voice for a bit, or fade out.
+  // Overlap: The amount of time the voice overlaps with the END of the intro
   const introOverlap = intro ? Math.min(3.0, introDuration / 2) : 0; 
+  
+  // Overlap: The amount of time the outro overlaps with the END of the voice
   const outroOverlap = outro ? Math.min(3.0, outroDuration / 2) : 0;
 
   const voiceStartTime = Math.max(0, introDuration - introOverlap);
@@ -217,164 +187,69 @@ export const mixPodcastAudio = async (
       introDuration,
       voiceStartTime + voiceRealDuration,
       outroStartTime + outroDuration
-  ) + 1.0; 
+  ) + 1.0; // +1s Safety buffer
 
   const offlineCtx = new OfflineAudioContext(2, totalDuration * sampleRate, sampleRate);
 
-  // --- PROCESSING CHAIN FACTORY ---
-  const createVoiceChain = (sourceNode: AudioBufferSourceNode, destination: AudioNode) => {
-      let currentNode: AudioNode = sourceNode;
+  // Helper to schedule buffer with fades
+  const scheduleTrack = (
+      buffer: AudioBuffer, 
+      startTime: number, 
+      maxVol: number, 
+      fadeInDuration: number = 0, 
+      fadeOutDuration: number = 0, 
+      playbackRate: number = 1.0
+  ) => {
+      const src = offlineCtx.createBufferSource();
+      src.buffer = buffer;
+      src.playbackRate.value = playbackRate;
+      
+      const gain = offlineCtx.createGain();
+      
+      // Calculate real duration of the clip in the timeline
+      const clipDuration = buffer.duration / playbackRate;
+      const endTime = startTime + clipDuration;
 
-      // 1. EQ
-      if (eqSettings.low !== 0 || eqSettings.mid !== 0 || eqSettings.high !== 0) {
-          const lowShelf = offlineCtx.createBiquadFilter();
-          lowShelf.type = 'lowshelf';
-          lowShelf.frequency.value = 100;
-          lowShelf.gain.value = eqSettings.low;
-
-          const midPeaking = offlineCtx.createBiquadFilter();
-          midPeaking.type = 'peaking';
-          midPeaking.frequency.value = 1000;
-          midPeaking.Q.value = 1;
-          midPeaking.gain.value = eqSettings.mid;
-
-          const highShelf = offlineCtx.createBiquadFilter();
-          highShelf.type = 'highshelf';
-          highShelf.frequency.value = 4000;
-          highShelf.gain.value = eqSettings.high;
-
-          currentNode.connect(lowShelf);
-          lowShelf.connect(midPeaking);
-          midPeaking.connect(highShelf);
-          currentNode = highShelf;
+      // Initial Volume
+      if (fadeInDuration > 0) {
+          gain.gain.setValueAtTime(0, startTime);
+          gain.gain.linearRampToValueAtTime(maxVol, Math.min(endTime, startTime + fadeInDuration));
+      } else {
+          gain.gain.setValueAtTime(maxVol, startTime);
       }
 
-      // 2. Compression
-      if (useCompression) {
-          const compressor = offlineCtx.createDynamicsCompressor();
-          compressor.threshold.value = -24;
-          compressor.knee.value = 30;
-          compressor.ratio.value = 12;
-          compressor.attack.value = 0.003;
-          compressor.release.value = 0.25;
-          
-          // Makeup gain
-          const makeup = offlineCtx.createGain();
-          makeup.gain.value = 1.5;
-
-          currentNode.connect(compressor);
-          compressor.connect(makeup);
-          currentNode = makeup;
+      // Fade Out
+      if (fadeOutDuration > 0) {
+          // Ensure we don't start fading out before we finish fading in if clip is super short
+          const fadeOutStart = Math.max(startTime + fadeInDuration, endTime - fadeOutDuration);
+          gain.gain.setValueAtTime(maxVol, fadeOutStart);
+          gain.gain.linearRampToValueAtTime(0, endTime);
+      } else {
+          gain.gain.setValueAtTime(maxVol, endTime - 0.01);
+          gain.gain.linearRampToValueAtTime(0, endTime); // Tiny fade to avoid click
       }
 
-      // 3. Reverb
-      if (reverbType !== 'none') {
-          const convolver = offlineCtx.createConvolver();
-          // Generate appropriate impulse response based on preset
-          let duration = 1.0;
-          let decay = 2.0;
-          
-          if (reverbType === 'room') { duration = 0.8; decay = 4.0; }
-          if (reverbType === 'studio') { duration = 0.3; decay = 8.0; }
-          if (reverbType === 'hall') { duration = 2.5; decay = 2.0; }
-
-          convolver.buffer = generateImpulseResponse(offlineCtx, duration, decay);
-          
-          const reverbGain = offlineCtx.createGain();
-          reverbGain.gain.value = 0.2; // Wet mix
-          
-          const dryGain = offlineCtx.createGain();
-          dryGain.gain.value = 0.8; // Dry mix
-
-          currentNode.connect(convolver);
-          convolver.connect(reverbGain);
-          currentNode.connect(dryGain);
-          
-          const merger = offlineCtx.createGain();
-          reverbGain.connect(merger);
-          dryGain.connect(merger);
-          
-          currentNode = merger;
-      }
-
-      // 4. Volume
-      const volumeNode = offlineCtx.createGain();
-      volumeNode.gain.value = voiceVolume;
-      currentNode.connect(volumeNode);
-      currentNode = volumeNode;
-
-      currentNode.connect(destination);
+      src.connect(gain);
+      gain.connect(offlineCtx.destination);
+      src.start(startTime);
   };
 
   // --- SCHEDULE TRACKS ---
 
   // 1. Intro
   if (intro) {
-      const src = offlineCtx.createBufferSource();
-      src.buffer = intro;
-      const gain = offlineCtx.createGain();
-      
-      // Fade In/Out
-      gain.gain.setValueAtTime(0, 0);
-      gain.gain.linearRampToValueAtTime(introVolume, 0.5);
-      gain.gain.setValueAtTime(introVolume, introDuration - introOverlap);
-      gain.gain.linearRampToValueAtTime(0, introDuration); // Fade completely out
-
-      src.connect(gain);
-      gain.connect(offlineCtx.destination);
-      src.start(0);
+      // Intro starts at 0. Fades in quickly (0.5s). Fades out slowly under the voice (introOverlap).
+      scheduleTrack(intro, 0, introVolume, 0.5, introOverlap);
   }
 
-  // 2. Voice (Processed)
-  const voiceSrc = offlineCtx.createBufferSource();
-  voiceSrc.buffer = voiceBuffer;
-  voiceSrc.playbackRate.value = speed;
-  createVoiceChain(voiceSrc, offlineCtx.destination);
-  voiceSrc.start(voiceStartTime);
+  // 2. Voice
+  // Voice starts at voiceStartTime. Tiny fade edges to prevent clicks.
+  scheduleTrack(voiceBuffer, voiceStartTime, voiceVolume, 0.1, 0.1, speed);
 
-  // 3. Background Bed
-  if (background) {
-      // Loop the background audio to fill the space between intro and outro
-      // Or just cover the whole duration at low volume
-      const bgSrc = offlineCtx.createBufferSource();
-      bgSrc.buffer = background;
-      bgSrc.loop = true;
-      
-      const bgGain = offlineCtx.createGain();
-      
-      // Ducking Logic: 
-      // Start silent during intro
-      bgGain.gain.setValueAtTime(0, 0);
-      // Fade in after intro
-      bgGain.gain.linearRampToValueAtTime(backgroundVolume, voiceStartTime);
-      // Fade out before outro
-      bgGain.gain.setValueAtTime(backgroundVolume, outroStartTime);
-      bgGain.gain.linearRampToValueAtTime(0, totalDuration);
-
-      bgSrc.connect(bgGain);
-      bgGain.connect(offlineCtx.destination);
-      bgSrc.start(0);
-      bgSrc.stop(totalDuration);
-  }
-
-  // 4. Outro
+  // 3. Outro
   if (outro) {
-      const src = offlineCtx.createBufferSource();
-      src.buffer = outro;
-      const gain = offlineCtx.createGain();
-      
-      // Fade In
-      gain.gain.setValueAtTime(0, outroStartTime);
-      gain.gain.linearRampToValueAtTime(outroVolume, outroStartTime + 2.0);
-      
-      // Fade Out at very end
-      const outroEnd = outroStartTime + outroDuration;
-      gain.gain.setValueAtTime(outroVolume, outroEnd - 3.0);
-      gain.gain.linearRampToValueAtTime(0, outroEnd);
-
-      src.connect(gain);
-      gain.connect(offlineCtx.destination);
-      src.start(outroStartTime);
+      // Outro starts at outroStartTime. Fades in slowly under the voice (outroOverlap). Fades out at end (3s).
+      scheduleTrack(outro, outroStartTime, outroVolume, outroOverlap, 3.0);
   }
 
   // Render

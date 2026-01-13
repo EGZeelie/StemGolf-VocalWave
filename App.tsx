@@ -7,12 +7,8 @@ import Analytics from './pages/Analytics';
 import CreatorSettings from './pages/CreatorSettings';
 import PublicPage from './pages/PublicPage';
 import BlogEditor from './pages/BlogEditor';
-import AdminDashboard from './pages/AdminDashboard';
-import StreamingDeck from './pages/StreamingDeck';
-import Settings from './pages/Settings';
 import Login from './pages/Login';
-import SponsorManager from './pages/SponsorManager'; // New Import
-import { AppRoute, PodcastProject, CreatorProfile, BlogPost, Series, Sponsor } from './types';
+import { AppRoute, PodcastProject, CreatorProfile, BlogPost, Series } from './types';
 import { db } from './services/db';
 import { PixelService } from './services/pixel';
 import { SEOService } from './services/seo';
@@ -116,8 +112,7 @@ const DEFAULT_PROFILE: CreatorProfile = {
   theme: 'classic',
   font: 'modern',
   plan: 'free',
-  removeBranding: false,
-  role: 'user'
+  removeBranding: false
 };
 
 const App: React.FC = () => {
@@ -130,7 +125,6 @@ const App: React.FC = () => {
   const [projects, setProjects] = useState<PodcastProject[]>([]);
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
   const [seriesList, setSeriesList] = useState<Series[]>([]);
-  const [sponsors, setSponsors] = useState<Sponsor[]>([]);
   const [profile, setProfile] = useState<CreatorProfile>(DEFAULT_PROFILE);
   
   const [editingProject, setEditingProject] = useState<PodcastProject | null>(null);
@@ -142,11 +136,10 @@ const App: React.FC = () => {
 
     const loadData = async () => {
       try {
-        const [loadedProjects, loadedBlogs, loadedSeries, loadedSponsors, loadedProfile] = await Promise.all([
+        const [loadedProjects, loadedBlogs, loadedSeries, loadedProfile] = await Promise.all([
           db.projects.list(),
           db.content.list(),
           db.series.list(),
-          db.sponsors.list(),
           db.users.getProfile()
         ]);
 
@@ -159,12 +152,11 @@ const App: React.FC = () => {
         setProjects(loadedProjects.length > 0 ? loadedProjects : []);
         setBlogPosts(loadedBlogs.length > 0 ? loadedBlogs : []);
         setSeriesList(loadedSeries);
-        setSponsors(loadedSponsors);
 
         if (session) {
           setIsAuthenticated(true);
           if (loadedProfile) {
-            // Merge loaded profile with default to ensure all fields exist (e.g. plan, role)
+            // Merge loaded profile with default to ensure all fields exist (e.g. plan)
             const mergedProfile = { ...DEFAULT_PROFILE, ...loadedProfile };
             setProfile(mergedProfile);
             SEOService.updateTags(mergedProfile.seo);
@@ -195,7 +187,7 @@ const App: React.FC = () => {
     loadData();
   }, []);
 
-  const handleLogin = async (method: 'google' | 'email', email?: string) => {
+  const handleLogin = async (method: 'google' | 'email') => {
     setIsAuthLoading(true);
     // Simulate network delay
     await new Promise(r => setTimeout(r, 1500));
@@ -203,20 +195,13 @@ const App: React.FC = () => {
     // Create/Ensure profile exists
     let userProfile = await db.users.getProfile();
     
-    // Check for Admin credentials (mocked)
-    const isAdmin = email === 'admin@stemgolf.app';
-
     if (!userProfile) {
       // Seed default profile on first login (Sign Up flow)
-      userProfile = {
-          ...DEFAULT_PROFILE,
-          role: isAdmin ? 'admin' : 'user',
-          name: isAdmin ? 'System Admin' : DEFAULT_PROFILE.name
-      };
+      userProfile = DEFAULT_PROFILE;
       await db.users.saveProfile(userProfile);
       
       // Also seed mock projects/blogs if empty
-      if (projects.length === 0 && !isAdmin) {
+      if (projects.length === 0) {
           await Promise.all([
              ...MOCK_PROJECTS.map(p => db.projects.save(p)),
              ...MOCK_BLOGS.map(b => db.content.save(b))
@@ -224,12 +209,6 @@ const App: React.FC = () => {
           setProjects(MOCK_PROJECTS);
           setBlogPosts(MOCK_BLOGS);
       }
-    } else {
-        // If profile exists, ensure role is correct based on login
-        if (isAdmin && userProfile.role !== 'admin') {
-            userProfile.role = 'admin';
-            await db.users.saveProfile(userProfile);
-        }
     }
     
     // Merge defaults on login as well
@@ -244,14 +223,7 @@ const App: React.FC = () => {
 
     localStorage.setItem('stemgolf_session', 'true');
     setIsAuthenticated(true);
-    
-    // Redirect based on Role
-    if (isAdmin) {
-        setCurrentRoute(AppRoute.ADMIN);
-    } else {
-        setCurrentRoute(AppRoute.DASHBOARD);
-    }
-    
+    setCurrentRoute(AppRoute.DASHBOARD);
     setIsAuthLoading(false);
   };
 
@@ -266,12 +238,6 @@ const App: React.FC = () => {
        setCurrentRoute(AppRoute.LOGIN);
        return;
     }
-    // Simple RBAC check
-    if (route === AppRoute.ADMIN && profile.role !== 'admin') {
-        alert("Access Denied: Admins only.");
-        return;
-    }
-
     setCurrentRoute(route);
     PixelService.trackPageView(); // Track route changes as PageViews
     if (route !== AppRoute.STUDIO) {
@@ -356,26 +322,6 @@ const App: React.FC = () => {
     setSeriesList(prev => [series, ...prev]);
   };
 
-  const handleSaveSponsor = async (sponsor: Sponsor) => {
-    await db.sponsors.save(sponsor);
-    setSponsors(prev => {
-      const idx = prev.findIndex(s => s.id === sponsor.id);
-      if (idx >= 0) {
-        const newSponsors = [...prev];
-        newSponsors[idx] = sponsor;
-        return newSponsors;
-      }
-      return [sponsor, ...prev];
-    });
-  };
-
-  const handleDeleteSponsor = async (id: string) => {
-    if (confirm("Remove this sponsor?")) {
-      await db.sponsors.delete(id);
-      setSponsors(prev => prev.filter(s => s.id !== id));
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="h-screen w-full bg-[#020617] flex flex-col items-center justify-center text-white">
@@ -435,37 +381,13 @@ const App: React.FC = () => {
         />
       )}
 
-      {currentRoute === AppRoute.SPONSOR_MANAGER && (
-        <SponsorManager
-          sponsors={sponsors}
-          onSave={handleSaveSponsor}
-          onDelete={handleDeleteSponsor}
-        />
-      )}
-
-      {currentRoute === AppRoute.SETTINGS && (
-        <Settings 
-          profile={profile}
-          onUpdateProfile={handleUpdateProfile}
-        />
-      )}
-
       {currentRoute === AppRoute.PUBLIC_PAGE && (
         <PublicPage 
           profile={profile} 
           projects={projects}
           posts={blogPosts}
-          sponsors={sponsors}
           onNavigate={handleNavigate}
         />
-      )}
-
-      {currentRoute === AppRoute.STREAMING_DECK && (
-          <StreamingDeck />
-      )}
-
-      {currentRoute === AppRoute.ADMIN && profile.role === 'admin' && (
-          <AdminDashboard />
       )}
     </Layout>
   );

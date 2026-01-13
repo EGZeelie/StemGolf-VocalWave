@@ -4,7 +4,7 @@ import Button from '../components/Button';
 import { ArrowRight, Check, Mail, Lock } from 'lucide-react';
 
 interface LoginProps {
-  onLogin: (method: 'google' | 'email', email?: string) => Promise<void>;
+  onLogin: (method: 'google' | 'email') => Promise<void>;
   isLoading: boolean;
 }
 
@@ -14,7 +14,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, isLoading }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin('email', email);
+    onLogin('email');
   };
 
   return (

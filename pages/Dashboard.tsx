@@ -1,7 +1,6 @@
-
 import React, { useEffect, useState } from 'react';
 import { PodcastProject, AppRoute } from '../types';
-import { Plus, Mic, PlayCircle, Clock, ExternalLink, Play, TrendingUp, ArrowUpRight, Search, RefreshCw, ChevronDown } from 'lucide-react';
+import { Plus, Mic, PlayCircle, Clock, ExternalLink, Play, TrendingUp, ArrowUpRight, Search, RefreshCw } from 'lucide-react';
 import Button from '../components/Button';
 
 interface DashboardProps {
@@ -17,74 +16,32 @@ interface Trend {
   growth: string;
 }
 
-const MOCK_TRENDS_1D: Trend[] = [
+const MOCK_TRENDS: Trend[] = [
   { title: "Springbokke vs All Blacks", volume: "200K+", category: "Sports", growth: "+500%" },
-  { title: "Beurtkrag Fase 6", volume: "100K+", category: "News", growth: "+120%" },
-  { title: "Kaapstad Weer", volume: "50K+", category: "Weather", growth: "+80%" },
-  { title: "7de Laan Finale", volume: "20K+", category: "Entertainment", growth: "+50%" },
-  { title: "Lotto Uitslae", volume: "10K+", category: "Finance", growth: "+20%" }
-];
-
-const MOCK_TRENDS_3D: Trend[] = [
-  { title: "Naweek Sport Opsomming", volume: "50K+", category: "Sports", growth: "+150%" },
-  { title: "Fuel Price Hike", volume: "80K+", category: "Finance", growth: "+90%" },
-  { title: "Local Elections", volume: "120K+", category: "Politics", growth: "+200%" },
-  { title: "Steve Hofmeyr Konsert", volume: "15K+", category: "Music", growth: "+30%" },
-  { title: "Nuew Netflix Reeks", volume: "25K+", category: "Entertainment", growth: "+45%" }
-];
-
-const MOCK_TRENDS_7D: Trend[] = [
-  { title: "Rugby World Cup Prep", volume: "500K+", category: "Sports", growth: "+60%" },
-  { title: "Economy Update", volume: "40K+", category: "Finance", growth: "+15%" },
-  { title: "Education Crisis", volume: "60K+", category: "News", growth: "+25%" },
-  { title: "Viral Braai Challenge", volume: "100K+", category: "Social", growth: "+300%" },
-  { title: "Tech Expo JHB", volume: "10K+", category: "Tech", growth: "+10%" }
-];
-
-const MOCK_TRENDS_30D: Trend[] = [
-  { title: "Matric Results 2023", volume: "1M+", category: "Education", growth: "+40%" },
-  { title: "Tourism Stats Dec", volume: "200K+", category: "Business", growth: "+12%" },
-  { title: "Yearly Climate Report", volume: "50K+", category: "Science", growth: "+5%" },
-  { title: "Top Music Hits 2023", volume: "300K+", category: "Music", growth: "+20%" },
-  { title: "Property Market Trends", volume: "20K+", category: "Real Estate", growth: "+8%" }
+  { title: "KykNET Verslag", volume: "20K+", category: "Entertainment", growth: "+50%" },
+  { title: "Beurtkrag Skedule", volume: "100K+", category: "News", growth: "+120%" },
+  { title: "Steve Hofmeyr", volume: "10K+", category: "Music", growth: "+20%" },
+  { title: "Bitcoin Prys", volume: "50K+", category: "Finance", growth: "+80%" }
 ];
 
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onEditProject, projects }) => {
   const [trends, setTrends] = useState<Trend[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [trendRange, setTrendRange] = useState('1d');
 
   useEffect(() => {
-    loadTrends(trendRange);
-  }, [trendRange]);
+    // Simulate fetching trends
+    setTrends(MOCK_TRENDS);
+  }, []);
 
-  const loadTrends = (range: string) => {
+  const handleRefreshTrends = () => {
     setIsRefreshing(true);
     // Simulate network delay and data update
     setTimeout(() => {
-        let data: Trend[] = [];
-        switch(range) {
-            case '1d': data = MOCK_TRENDS_1D; break;
-            case '3d': data = MOCK_TRENDS_3D; break;
-            case '7d': data = MOCK_TRENDS_7D; break;
-            case '30d': data = MOCK_TRENDS_30D; break;
-            default: data = MOCK_TRENDS_1D;
-        }
-        // Shuffle slightly to simulate live updates
-        if (Math.random() > 0.7) {
-            data = [...data].sort(() => 0.5 - Math.random());
-        }
-        setTrends(data);
+        // Shuffle trends to simulate change
+        const shuffled = [...MOCK_TRENDS].sort(() => 0.5 - Math.random());
+        setTrends(shuffled);
         setIsRefreshing(false);
-    }, 600);
-  };
-
-  const handleRefreshTrends = () => {
-    loadTrends(trendRange);
-  };
-
-  const handleRangeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      setTrendRange(e.target.value);
+    }, 800);
   };
 
   const handleUseTrend = (trend: Trend) => {
@@ -248,19 +205,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onEditProject, projec
                         <TrendingUp className="w-4 h-4 text-blue-500" /> Google Trends
                     </h3>
                     <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <select 
-                                value={trendRange}
-                                onChange={handleRangeChange}
-                                className="appearance-none bg-[#121212] border border-[#333] text-[10px] text-slate-400 pl-2 pr-6 py-1 rounded focus:border-blue-500 focus:outline-none cursor-pointer hover:border-slate-500 transition-colors"
-                            >
-                                <option value="1d">ZA • 1 Day</option>
-                                <option value="3d">ZA • 3 Days</option>
-                                <option value="7d">ZA • Week</option>
-                                <option value="30d">ZA • Month</option>
-                            </select>
-                            <ChevronDown className="w-3 h-3 text-slate-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        </div>
+                        <span className="text-[10px] bg-[#121212] border border-[#333] text-slate-400 px-2 py-0.5 rounded">ZA • Daily</span>
                         <button 
                             onClick={handleRefreshTrends} 
                             className={`p-1 hover:bg-[#333] rounded text-slate-400 hover:text-white transition-colors ${isRefreshing ? 'animate-spin' : ''}`}
@@ -278,7 +223,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onEditProject, projec
                         </div>
                     ) : (
                         <>
-                            <p className="text-xs text-slate-500 mb-4">Trending searches in South Africa for the last {trendRange === '1d' ? '24 hours' : trendRange === '3d' ? '3 days' : trendRange === '7d' ? '7 days' : '30 days'}. Click to create an episode.</p>
+                            <p className="text-xs text-slate-500 mb-4">Trending searches in South Africa today. Click to create an episode.</p>
                             <div className="space-y-3">
                                 {trends.map((trend, i) => (
                                     <div key={i} className="group flex items-center justify-between p-2 rounded-lg hover:bg-[#222] transition-colors border border-transparent hover:border-[#333]">
