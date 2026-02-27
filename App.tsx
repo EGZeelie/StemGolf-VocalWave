@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -112,7 +113,9 @@ const DEFAULT_PROFILE: CreatorProfile = {
   theme: 'classic',
   font: 'modern',
   plan: 'free',
-  removeBranding: false
+  removeBranding: false,
+  // FIX: Added missing 'role' property
+  role: 'user',
 };
 
 const App: React.FC = () => {

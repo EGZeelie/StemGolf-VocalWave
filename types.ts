@@ -5,16 +5,35 @@ export interface Chapter {
   timestamp: number; // Seconds from start of voice track
 }
 
+export interface EqualizerSettings {
+  low: number; // dB (-12 to 12)
+  mid: number; // dB
+  high: number; // dB
+}
+
 export interface ProductionSettings {
   introMusic?: 'news' | 'story' | 'upbeat' | 'none' | 'custom';
   introAudioUrl?: string; // Data URL or Blob URL
   outroMusic?: 'news' | 'story' | 'upbeat' | 'none' | 'custom';
   outroAudioUrl?: string; // Data URL or Blob URL
+  
+  // Background / Bed
+  backgroundMusic?: string; // Data URL for looping background
+  backgroundVolume?: number;
+
+  // Voice Processing
   playbackSpeed: number; // 0.5 to 2.0
-  pitch: number; // -12 to 12 semitones (simulated via rate or detune)
+  pitch: number; // -12 to 12 semitones
+  voiceVolume?: number; // 0.0 to 2.0
+  
+  // Advanced FX
+  eqSettings?: EqualizerSettings;
+  compression?: boolean;
+  reverb?: 'none' | 'studio' | 'room' | 'hall';
+  
+  // Global Levels
   introVolume?: number;
   outroVolume?: number;
-  voiceVolume?: number; // 0.0 to 2.0
 }
 
 export interface DistributionMetadata {
@@ -115,6 +134,7 @@ export interface CreatorProfile {
   plan: 'free' | 'pro'; // Subscription status
   customDomain?: string;
   removeBranding: boolean;
+  role: 'user' | 'admin';
 }
 
 export interface BlogPost {
@@ -146,7 +166,10 @@ export enum AppRoute {
   ANALYTICS = 'analytics',
   SETTINGS = 'settings',
   CREATOR_SETTINGS = 'creator_settings',
-  PUBLIC_PAGE = 'public_page'
+  SPONSOR_MANAGER = 'sponsor_manager',
+  PUBLIC_PAGE = 'public_page',
+  ADMIN = 'admin',
+  STREAMING_DECK = 'streaming_deck'
 }
 
 // Gemini specific types usually come from the SDK, but we define internal mapped types here
