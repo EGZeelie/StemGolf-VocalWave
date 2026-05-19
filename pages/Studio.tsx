@@ -1198,26 +1198,204 @@ const Studio: React.FC<StudioProps> = ({
             )}
 
             {activeTab === 'distribution' && (
-              /* ... Distribution Tab Content Unchanged ... */
-              <div className="p-8 space-y-8 overflow-y-auto">
-                  {/* Reuse existing distribution code structure, simplified for brevity here since focus is on Production */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      {/* Left: Metadata */}
+              <div className="p-0 h-full flex flex-col overflow-hidden">
+                <div className="p-4 border-b border-[#272727] bg-[#1f1f1f] flex justify-between items-center">
+                    <h3 className="font-bold text-white flex items-center gap-2">
+                        <Globe className="w-5 h-5 text-orange-600" /> Distribution & Publishing
+                    </h3>
+                </div>
+                <div className="flex-1 overflow-y-auto p-6 bg-[#121212]">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
+                      
+                      {/* Left Column: Cover Art & Metadata */}
                       <div className="space-y-6">
-                          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                            <Rss className="w-5 h-5 text-orange-600" /> Episode Metadata
-                          </h3>
-                          {/* ... metadata fields ... */}
-                          <div>
-                              <label className="block text-sm font-medium text-slate-400">Author</label>
-                              <input type="text" value={metadata.author} onChange={e => setMetadata({...metadata, author: e.target.value})} className="mt-1 w-full bg-[#121212] text-white rounded-md border-[#333]" />
+                          {/* Cover Art Section */}
+                          <div className="bg-[#181818] p-5 rounded-xl border border-[#333]">
+                              <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                                <ImageIcon className="w-4 h-4 text-orange-500" /> Cover Art
+                              </h4>
+                              <div className="flex gap-4 items-start">
+                                <div className="w-32 h-32 bg-[#111] rounded-lg border border-[#272727] flex items-center justify-center overflow-hidden shrink-0">
+                                  {metadata.coverArt ? (
+                                    <img src={metadata.coverArt} alt="Cover" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <ImageIcon className="w-8 h-8 text-slate-600" />
+                                  )}
+                                </div>
+                                <div className="flex-1 space-y-3">
+                                  <div className="flex gap-2">
+                                    <button onClick={() => fileInputRef.current?.click()} className="flex-1 bg-[#222] hover:bg-[#333] border border-[#444] text-white text-xs py-2 px-3 rounded-lg transition-colors text-center">
+                                      Upload Image
+                                    </button>
+                                    <button onClick={() => setShowImageGen(!showImageGen)} className="flex-1 bg-orange-600 hover:bg-orange-700 text-white text-xs py-2 px-3 rounded-lg transition-colors flex justify-center items-center gap-1">
+                                      <Sparkles className="w-3 h-3" /> AI Generate
+                                    </button>
+                                  </div>
+                                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                                  <p className="text-[10px] text-slate-500">Recommended: Square format (1:1), at least 1400x1400px. JPG or PNG.</p>
+                                </div>
+                              </div>
+                              
+                              {showImageGen && (
+                                <div className="mt-4 p-3 bg-[#111] rounded-lg border border-[#272727] space-y-3">
+                                  <label className="text-xs text-slate-400 font-bold block mb-1">Image Prompt</label>
+                                  <textarea 
+                                    className="w-full bg-[#181818] border border-[#333] rounded p-2 text-sm text-white focus:outline-none focus:border-orange-500 h-20 resize-none custom-scrollbar"
+                                    placeholder="Describe the cover art you want..."
+                                    value={imagePrompt}
+                                    onChange={(e) => setImagePrompt(e.target.value)}
+                                  />
+                                  <Button className="w-full" size="sm" onClick={handleGenerateImage} isLoading={isGeneratingImage}>Generate Art</Button>
+                                </div>
+                              )}
+                          </div>
+
+                          {/* RSS Metadata */}
+                          <div className="bg-[#181818] p-5 rounded-xl border border-[#333] space-y-4">
+                              <h4 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+                                <Rss className="w-4 h-4 text-orange-500" /> Standard Metadata (RSS)
+                              </h4>
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">Author</label>
+                                  <input type="text" value={metadata.author} onChange={e => setMetadata({...metadata, author: e.target.value})} className="w-full bg-[#121212] border border-[#333] rounded px-3 py-2 text-sm text-white focus:border-orange-500 outline-none" />
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 mb-1">Season</label>
+                                      <input type="number" value={metadata.season || ''} onChange={e => setMetadata({...metadata, season: parseInt(e.target.value)})} className="w-full bg-[#121212] border border-[#333] rounded px-3 py-2 text-sm text-white focus:border-orange-500 outline-none" />
+                                  </div>
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 mb-1">Episode</label>
+                                      <input type="number" value={metadata.episode || ''} onChange={e => setMetadata({...metadata, episode: parseInt(e.target.value)})} className="w-full bg-[#121212] border border-[#333] rounded px-3 py-2 text-sm text-white focus:border-orange-500 outline-none" />
+                                  </div>
+                              </div>
+                              <div className="flex items-center gap-2 mt-2">
+                                  <input type="checkbox" id="explicit" checked={metadata.explicit} onChange={e => setMetadata({...metadata, explicit: e.target.checked})} className="rounded bg-[#121212] border-[#333] text-orange-500 focus:ring-orange-500/20" />
+                                  <label htmlFor="explicit" className="text-sm text-slate-300">Contains explicit language</label>
+                              </div>
+                          </div>
+
+                          {/* Extra Generation Options */}
+                          <div className="bg-[#181818] p-5 rounded-xl border border-[#333] space-y-4">
+                              <h4 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-orange-500" /> Content Repurposing
+                              </h4>
+                              <div className="flex items-start gap-3 bg-[#111] p-3 rounded-lg border border-[#272727]">
+                                  <input 
+                                    type="checkbox" 
+                                    id="autoGenBlog" 
+                                    checked={autoGenBlog} 
+                                    onChange={e => setAutoGenBlog(e.target.checked)} 
+                                    className="mt-1 rounded bg-[#121212] border-[#333] text-orange-500 focus:ring-orange-500/20" 
+                                  />
+                                  <div>
+                                      <label htmlFor="autoGenBlog" className="text-sm font-medium text-white block cursor-pointer">Auto-generate Blog Post</label>
+                                      <p className="text-xs text-slate-500 mt-0.5">Creates a draft article in your blog section based on this episode's script.</p>
+                                  </div>
+                              </div>
                           </div>
                       </div>
-                      {/* Right: Platforms */}
-                      <div>
-                          <Button size="lg" className="w-full" onClick={handlePublish} disabled={!audioUrl}>Publish Now</Button>
+
+                      {/* Right Column: Syndication & Publish */}
+                      <div className="space-y-6 flex flex-col">
+                          <div className="bg-[#181818] p-5 rounded-xl border border-[#333] flex-1">
+                              <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                                <Share2 className="w-4 h-4 text-orange-500" /> Syndication Platforms
+                              </h4>
+                              
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                                {PLATFORMS.map(platform => {
+                                  const isSelected = selectedPlatforms.includes(platform.id);
+                                  const pStatus = platformStatusMap[platform.id];
+                                  return (
+                                    <div 
+                                      key={platform.id}
+                                      onClick={() => togglePlatform(platform.id, platform.isConnected)}
+                                      className={`flex items-center gap-3 p-3 rounded border cursor-pointer transition-all ${isSelected ? platform.color + ' ring-1 ring-white/10' : 'bg-[#111] border-[#272727] hover:border-[#444] opacity-50 hover:opacity-100'}`}
+                                    >
+                                      <div className={`w-8 h-8 rounded shrink-0 flex items-center justify-center ${platform.iconColor}`}>
+                                         {platform.id === 'spotify' && <ListMusic className="w-4 h-4 text-white" />}
+                                         {platform.id === 'apple' && <Mic className="w-4 h-4 text-white" />}
+                                         {platform.id === 'youtube' && <Youtube className="w-4 h-4 text-white" />}
+                                         {platform.id === 'x' && <Twitter className="w-4 h-4 text-white" />}
+                                         {platform.id === 'facebook' && <Facebook className="w-4 h-4 text-white" />}
+                                         {platform.id === 'rss' && <Rss className="w-4 h-4 text-white" />}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                         <div className="text-sm font-bold text-white truncate">{platform.name}</div>
+                                         <div className="text-[10px] text-slate-400 capitalize">
+                                            {pStatus === 'success' ? <span className="text-green-400 flex items-center gap-1"><CheckCircle className="w-3 h-3"/> Published</span> :
+                                             pStatus === 'error' ? <span className="text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Failed</span> :
+                                             pStatus === 'pending' ? <span className="text-orange-400 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Processing</span> :
+                                             isSelected ? 'Ready' : (platform.isConnected ? 'Click to select' : 'Not Connected')}
+                                         </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* YouTube Metadata Section (Conditional) */}
+                              {selectedPlatforms.includes('youtube') && (
+                                <div className="mt-6 pt-6 border-t border-[#333]">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                                          <Youtube className="w-4 h-4 text-red-500" /> YouTube Generation
+                                        </h4>
+                                        <button 
+                                          onClick={handleGenerateYoutubeAssets}
+                                          disabled={status === 'generating_youtube'}
+                                          className="text-xs bg-[#222] hover:bg-[#333] text-white px-2 py-1 rounded flex items-center gap-1"
+                                        >
+                                            {status === 'generating_youtube' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3 text-orange-400" />}
+                                            {youtubeMeta ? "Regenerate" : "Generate Metadata"}
+                                        </button>
+                                    </div>
+                                    {youtubeMeta ? (
+                                        <div className="bg-[#111] p-3 rounded-lg border border-[#272727] space-y-3">
+                                            {youtubeMeta.thumbnailUrl && (
+                                                <div className="aspect-video bg-black rounded overflow-hidden border border-[#333]">
+                                                    <img src={youtubeMeta.thumbnailUrl} alt="YT Thumbnail" className="w-full h-full object-cover" />
+                                                </div>
+                                            )}
+                                            <div>
+                                                <label className="text-[10px] text-slate-500 uppercase font-bold">Title (Max 100)</label>
+                                                <div className="text-sm text-white font-medium">{youtubeMeta.title}</div>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] text-slate-500 uppercase font-bold">Tags</label>
+                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                    {youtubeMeta.tags.map(tag => (
+                                                        <span key={tag} className="bg-[#222] text-slate-300 text-[10px] px-1.5 py-0.5 rounded">#{tag}</span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-6 bg-[#111] rounded-lg border border-[#272727] border-dashed">
+                                            <p className="text-xs text-slate-500">Auto-generate title, tags, and a 16:9 thumbnail optimized for YouTube.</p>
+                                        </div>
+                                    )}
+                                </div>
+                              )}
+                          </div>
+
+                          <div className="pt-4 flex flex-col gap-3">
+                              <Button 
+                                size="lg" 
+                                className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold h-14" 
+                                onClick={handlePublish} 
+                                disabled={!audioUrl || selectedPlatforms.length === 0 || status === 'publishing' || status === 'generating_youtube'}
+                                isLoading={status === 'publishing' || status === 'generating_youtube'}
+                              >
+                                {status === 'generating_youtube' ? 'Generating Assets...' : 'Publish Selected'}
+                              </Button>
+                              {!audioUrl && <p className="text-xs text-center text-red-400">Cannot publish: No audio generated yet.</p>}
+                              {audioUrl && selectedPlatforms.length === 0 && <p className="text-xs text-center text-slate-400">Select at least one destination to publish.</p>}
+                          </div>
                       </div>
                   </div>
+                </div>
               </div>
             )}
           </div>
