@@ -908,13 +908,68 @@ const Studio: React.FC<StudioProps> = ({
           <div className="flex-1 flex flex-col bg-[#181818] rounded-xl border border-[#272727] overflow-hidden">
             
             {activeTab === 'script' && (
-              /* ... Script Content Unchanged ... */
-              <textarea
-                  className="flex-1 w-full p-6 resize-none focus:outline-none bg-[#181818] text-slate-200 leading-relaxed text-lg font-serif"
-                  placeholder="Write your podcast script here..."
+              <div className="flex-1 flex flex-col h-full relative">
+                <div className="p-4 border-b border-[#272727] flex justify-between items-center bg-[#1f1f1f]">
+                  <div className="flex items-center gap-2">
+                    <Button variant="secondary" size="sm" onClick={() => setShowAiOptions(!showAiOptions)}>
+                      <Sparkles className="w-4 h-4 mr-2 text-orange-500" />
+                      AI Assistant
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="secondary" size="sm" onClick={insertChapter}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Chapter
+                    </Button>
+                  </div>
+                </div>
+
+                {showAiOptions && (
+                  <div className="p-4 bg-[#121212] border-b border-[#272727] space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Script Topics / Instructions</label>
+                      <input 
+                        type="text" 
+                        value={scriptTopics}
+                        onChange={(e) => setScriptTopics(e.target.value)}
+                        placeholder="e.g. The history of the Afrikaans language, keep it light and funny..."
+                        className="w-full bg-[#181818] border border-[#333] rounded-lg px-3 py-2 text-sm text-white focus:border-orange-500 outline-none"
+                      />
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Length</label>
+                        <select 
+                          value={scriptLength}
+                          onChange={(e) => setScriptLength(e.target.value as any)}
+                          className="w-full bg-[#181818] border border-[#333] rounded-lg px-3 py-2 text-sm text-white focus:border-orange-500 outline-none"
+                        >
+                          <option value="short">Short (~2 mins)</option>
+                          <option value="medium">Medium (~5 mins)</option>
+                          <option value="long">Long (~10 mins)</option>
+                        </select>
+                      </div>
+                      <div className="flex items-end">
+                        <Button 
+                          onClick={handleGenerateScript} 
+                          isLoading={status === 'generating_script'}
+                          className="w-full"
+                        >
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          Generate Script
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <textarea
+                  className="flex-1 w-full p-6 resize-none focus:outline-none bg-[#181818] text-slate-200 leading-relaxed text-lg font-serif custom-scrollbar"
+                  placeholder="Write your podcast script here, or use the AI Assistant to generate one..."
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                 />
+              </div>
             )}
 
             {activeTab === 'recording' && (
