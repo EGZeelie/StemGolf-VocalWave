@@ -4,8 +4,9 @@
 
 # StemGolf-VocalWave
 
-> An AI-powered application for vocal analysis and music stem separation using Google Gemini API
+> An open-source AI-powered application for vocal analysis and music stem separation using Google Gemini API
 
+![Open Source](https://img.shields.io/badge/Open%20Source-100%25-brightgreen)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-green)
 ![Gemini API](https://img.shields.io/badge/Gemini%20API-Integrated-blue)
 ![AI Studio](https://img.shields.io/badge/Google%20AI%20Studio-Compatible-orange)
@@ -13,7 +14,9 @@
 
 ## 📋 About
 
-StemGolf-VocalWave is an innovative web application that combines **vocal wave analysis** with **music stem separation** capabilities. Powered by Google's Gemini API, this app helps musicians, producers, and audio engineers extract, analyze, and manipulate individual instrument stems from audio tracks.
+**StemGolf-VocalWave** is a **100% open-source** web application that combines **vocal wave analysis** with **music stem separation** capabilities. Powered by Google's Gemini API, this app helps musicians, producers, and audio engineers extract, analyze, and manipulate individual instrument stems from audio tracks.
+
+This is a community-driven project built by developers for developers. We welcome contributions from anyone interested in improving audio technology!
 
 ### Key Features
 
@@ -33,7 +36,7 @@ StemGolf-VocalWave is an innovative web application that combines **vocal wave a
 - DJ mixing and remixing
 - Audio restoration
 
-## 🚀 Run Locally
+## 🚀 Quick Start
 
 **Prerequisites:**  Node.js (v18 or higher)
 
@@ -120,17 +123,42 @@ GEMINI_API_KEY=your_gemini_api_key
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit issues or pull requests.
+We love contributions! This is an open-source project and we welcome developers of all skill levels.
+
+### How to Contribute
+
+1. **Fork** this repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+4. **Push** to the branch (`git push origin feature/amazing-feature`)
+5. **Open** a Pull Request
+
+### Types of Contributions Welcome
+
+- 🐛 **Bug Reports** - Found a bug? Let us know!
+- ✨ **New Features** - Have an idea? Submit a PR!
+- 📚 **Documentation** - Help improve our docs
+- 🎨 **Design Improvements** - Make the UI/UX better
+- ⚡ **Performance Improvements** - Optimize the code
+- 🧪 **Tests** - Help us improve test coverage
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
+### What this means:
+- ✅ You can use this code for commercial projects
+- ✅ You can modify and distribute the code
+- ✅ You can use this privately
+- ✅ You must include a copy of the license
+- ⚠️ No warranty is provided
 
 ## 🔗 Links
 
 - [View on AI Studio](https://ai.studio/apps/380fbb49-06de-4c4c-8968-395e6de88de2)
 - [Google Gemini API Documentation](https://ai.google.dev)
 - [Google AI Studio](https://ai.google.dev)
+- [GitHub Repository](https://github.com/EGZeelie/StemGolf-VocalWave)
 
 ## 👤 Author
 
@@ -138,4 +166,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-Made with ❤️ using Google Gemini API
+**Made with ❤️ by the open-source community**
+
+If you find this project helpful, please consider giving it a ⭐ star!
